@@ -91,22 +91,63 @@ confirmation, friction included, train/test split) running in the
 background. Results TBD -- check for a later dated entry before
 re-running the same sweep.
 
+## 2026-08-18 (cont.) -- Full sweep: baseline validated, sweep result rejected as overfit
+
+Ran the full staged sweep (30 sweep symbols, friction included, 25% of
+the 30-day window held out as test): `ATR_STOP_MULTIPLIER` in
+[5,8,10,14,20], `RISK_REWARD_RATIO` in [1.5,2,2.5,3,4],
+`MIN_CONFIDENCE` in [55,60,65,70,75,80].
+
+**Baseline (current live config: ATR=10, RR=2.5, min_conf=70) confirmed
+on the full 60-symbol volume-ranked set, WITH friction:**
+- Full period: 579 trades, 27.1% win rate, +0.777% expectancy
+- **Held-out test period: 88 trades, 19.3% win rate, +0.610% expectancy**
+
+This is the first properly validated (out-of-sample, fee-inclusive)
+positive result. It appears to be driven mainly by the volume-ranking
+symbol-selection fix earlier today, not by any exit-parameter tuning.
+
+**Sweep's nominal "winner" (ATR=20, RR=2.0, min_conf=60): REJECTED.**
+Train-period expectancy looked spectacular (+7.095% at one grid point)
+but only because trade count collapsed as parameters tightened (759
+trades down to 69-97) -- a handful of surviving trades getting lucky,
+not real signal. Held-out test period had only **15 trades** (below the
+significance bar) and a win rate (20.0%) barely different from
+baseline's (19.3%). Textbook overfit, caught by the train/test split
+exactly as designed.
+
+**Decision: no config.py change from this sweep.** Current live
+parameters (ATR_STOP_MULTIPLIER=10, RISK_REWARD_RATIO=2.5,
+MIN_CONFIDENCE=70) remain the best validated choice. Do not re-run this
+exact grid search expecting a different conclusion -- the exit-parameter
+space around the current values appears to be a fairly flat plateau, not
+a space with an easy nearby improvement. Effort from here is better
+spent on the signal formula itself (see below) than more exit-parameter
+sweeping.
+
 ## What's next (unexplored, in rough priority order)
 
-1. **Validate the volume-ranking result properly** -- confirm the
-   +1.179% baseline figure holds up with friction included and on the
-   held-out test period specifically, not just the dry run's full-period
-   number.
-2. **Signal formula itself has never been tuned or validated**, only its
-   exit parameters. The 70-79-outperforms-90-99 confidence finding above
-   suggests some scoring component may be actively unhelpful. Try
-   component ablation: does removing/reweighting RSI, MACD, or the volume
-   score change out-of-sample expectancy?
-3. **Multi-timeframe confirmation** -- require 1h trend agreement before
+1. ~~Validate the volume-ranking result properly~~ -- DONE, see
+   2026-08-18 (cont.) entry above. Confirmed out-of-sample with friction
+   included: +0.610%/trade over 88 held-out trades.
+2. ~~Exit-parameter sweep (ATR multiplier / risk:reward / confidence
+   threshold)~~ -- DONE, see same entry. No improvement found; current
+   live values already appear near-optimal in that parameter space.
+3. **Signal formula itself has never been tuned or validated** -- this
+   is now the top priority. Only exit parameters have been swept so far.
+   The earlier 507-trade backtest found the 70-79 confidence bucket
+   outperforming 80-99, suggesting some scoring component may be
+   actively unhelpful. Try component ablation: does removing/reweighting
+   RSI, MACD, EMA-spread, or the volume score change out-of-sample
+   expectancy? Use the same train/test discipline as the exit sweep --
+   whatever "wins" must hold up on a held-out period with a meaningful
+   trade count (learn from the ATR=20 rejection above).
+4. **Multi-timeframe confirmation** -- require 1h trend agreement before
    a 5m entry. Common fix for exactly this kind of "looks fine, doesn't
    hold up" signal problem. Not yet attempted.
-4. **Wider parameter grids / finer search** once the coordinate-descent
-   sweep's rough optimum is known, to check it's not a local optimum.
-5. Nothing here has been tested on a second, non-overlapping historical
-   period beyond the one 30-day/train-test split. A real validation
-   would test across multiple distinct time windows.
+5. **A second, non-overlapping historical window.** Everything so far is
+   one 30-day period with one train/test split inside it. A real
+   validation needs testing across multiple distinct time windows (e.g.
+   a different prior month) to rule out this period being unusual.
+6. Wider/finer exit-parameter grids only if #3 or #4 change the picture
+   enough to be worth revisiting -- not before, given #2's conclusion.
