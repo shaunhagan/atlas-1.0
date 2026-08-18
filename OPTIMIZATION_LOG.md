@@ -156,6 +156,30 @@ confirmatory test on the full 60-symbol set before making any code
 change. Check for a following dated entry with that result before
 repeating this test.
 
+## 2026-08-18 (cont.) -- Momentum component confirmed harmful, removed from live default
+
+Confirmed on the full 60-symbol set (much bigger sample than the
+30-symbol ablation): held-out test period, baseline (with momentum) 88
+trades / 19.3% win rate / +0.610% expectancy vs without-momentum 103
+trades / 22.3% win rate / **+1.112% expectancy**. Consistent direction
+with the smaller ablation run, similar trade population (88 vs 103, not
+a different set), both comfortably above the significance bar. This is
+the first ablation result trusted enough to act on.
+
+**Applied:** `SignalEngine.evaluate()`'s `use_momentum` default flipped
+from `True` to `False`. The scoring component (histogram > 0 -> +10 /
+else -5) still exists in code, toggleable for future research, but is
+off by default. Live bot restarted to pick this up -- no portfolio
+reset needed, this only affects future entries, not the sizing/risk
+math or open positions.
+
+**Why a histogram-sign signal might actively hurt:** it's plausible
+this component is largely redundant with the MACD-line-vs-signal check
+(both derive from the same MACD calculation) and mostly adds noise
+rather than independent information, especially right at MACD
+crossover points where the histogram briefly flips sign before the
+trend actually resolves either way.
+
 ## What's next (unexplored, in rough priority order)
 
 1. ~~Validate the volume-ranking result properly~~ -- DONE, see

@@ -33,7 +33,13 @@ class SignalEngine:
         use_trend=True,
         use_rsi=True,
         use_macd=True,
-        use_momentum=True,
+        # Defaults to False: ablation testing (OPTIMIZATION_LOG.md,
+        # 2026-08-18) confirmed on 88 vs 103 held-out test trades
+        # that this component actively hurts out-of-sample
+        # expectancy (+0.610% with it vs +1.112% without). Kept as
+        # a toggle, not deleted, so future research can re-enable
+        # it explicitly for comparison.
+        use_momentum=False,
         use_volume=True,
         use_chop_gate=True,
     ):
