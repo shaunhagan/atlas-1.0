@@ -125,6 +125,37 @@ a space with an easy nearby improvement. Effort from here is better
 spent on the signal formula itself (see below) than more exit-parameter
 sweeping.
 
+## 2026-08-18 (cont.) -- Signal component ablation
+
+Built `ablate.py`: toggles each scoring component off one at a time
+(`SignalEngine.evaluate` gained `use_trend`/`use_rsi`/`use_macd`/
+`use_momentum`/`use_volume`/`use_chop_gate` flags, all default True,
+live behaviour unchanged) and compares train/test expectancy against
+the full-signal baseline. 30 symbols, same train/test split as the
+exit-parameter sweep.
+
+**Baseline: 234 train / 38 test trades, test expectancy +1.978%.**
+
+| Removed | Test N | Test Expectancy | Verdict |
+|---|---|---|---|
+| trend (EMA) | 0 | n/a | Structurally required -- confidence never reaches MIN_CONFIDENCE without it |
+| RSI | 33 | -3.197% | Removing it hurts -- keep |
+| MACD | 59 | -1.558% | Removing it hurts -- keep |
+| momentum (histogram sign) | 39 | **+2.533%** | Removing it *helps*, and N is nearly unchanged (38->39, the cleanest comparison here since trade population barely shifted) |
+| volume | 33 | +0.607% | Removing it hurts -- keep |
+| chop-gate | 889 | -0.120%, ~1% win rate | Removing it is catastrophic (12x more trades, near-zero win rate) -- absolutely keep |
+
+RSI, MACD, volume, and the chop-gate are all clearly load-bearing --
+removing any of them makes out-of-sample results meaningfully worse.
+No ambiguity there, no further action needed on those four.
+
+**Momentum (histogram sign, `use_momentum`) is the one open question.**
+38-39 trades is still a small sample on its own (same order of
+magnitude as the ATR=20 result rejected earlier today) -- running a
+confirmatory test on the full 60-symbol set before making any code
+change. Check for a following dated entry with that result before
+repeating this test.
+
 ## What's next (unexplored, in rough priority order)
 
 1. ~~Validate the volume-ranking result properly~~ -- DONE, see
