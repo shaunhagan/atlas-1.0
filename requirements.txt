@@ -4,3 +4,4 @@ numpy
 python-dotenv
 colorama
 tabulate
+alpaca-py
