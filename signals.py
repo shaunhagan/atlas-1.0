@@ -30,6 +30,12 @@ class SignalEngine:
         min_ema_spread_pct=MIN_EMA_SPREAD_PCT,
         min_macd_hist_pct=MIN_MACD_HIST_PCT,
         min_volume_ratio=MIN_VOLUME_RATIO,
+        use_trend=True,
+        use_rsi=True,
+        use_macd=True,
+        use_momentum=True,
+        use_volume=True,
+        use_chop_gate=True,
     ):
         """
         Return a consistent signal result.
@@ -39,7 +45,9 @@ class SignalEngine:
 
         Threshold parameters default to the live config values but
         are overridable so the backtester can sweep them without
-        touching config.py.
+        touching config.py. The use_* flags default to True (live
+        behaviour unchanged) and let the backtester ablate individual
+        scoring components to test whether each one actually helps.
         """
 
         confidence = 0
@@ -48,68 +56,78 @@ class SignalEngine:
         # -----------------------------
         # Trend
         # -----------------------------
-        if price > ema_fast:
-            confidence += 15
-            reasons.append("Price above EMA20")
-        else:
-            confidence -= 10
-            reasons.append("Price below EMA20")
+        if use_trend:
 
-        if ema_fast > ema_slow:
-            confidence += 20
-            reasons.append("EMA20 above EMA50")
-        else:
-            confidence -= 15
-            reasons.append("EMA20 below EMA50")
+            if price > ema_fast:
+                confidence += 15
+                reasons.append("Price above EMA20")
+            else:
+                confidence -= 10
+                reasons.append("Price below EMA20")
+
+            if ema_fast > ema_slow:
+                confidence += 20
+                reasons.append("EMA20 above EMA50")
+            else:
+                confidence -= 15
+                reasons.append("EMA20 below EMA50")
 
         # -----------------------------
         # RSI
         # -----------------------------
-        if 45 <= rsi <= 60:
-            confidence += 15
-            reasons.append("Healthy RSI")
-        elif 35 <= rsi < 45:
-            confidence += 5
-            reasons.append("RSI recovering")
-        elif rsi < 35:
-            confidence += 10
-            reasons.append("Oversold")
-        elif 60 < rsi <= 70:
-            confidence += 5
-            reasons.append("Strong RSI")
-        elif rsi > 70:
-            confidence -= 15
-            reasons.append("Overbought")
+        if use_rsi:
+
+            if 45 <= rsi <= 60:
+                confidence += 15
+                reasons.append("Healthy RSI")
+            elif 35 <= rsi < 45:
+                confidence += 5
+                reasons.append("RSI recovering")
+            elif rsi < 35:
+                confidence += 10
+                reasons.append("Oversold")
+            elif 60 < rsi <= 70:
+                confidence += 5
+                reasons.append("Strong RSI")
+            elif rsi > 70:
+                confidence -= 15
+                reasons.append("Overbought")
 
         # -----------------------------
         # MACD
         # -----------------------------
-        if macd > signal:
-            confidence += 20
-            reasons.append("Bullish MACD")
-        else:
-            confidence -= 10
-            reasons.append("Bearish MACD")
+        if use_macd:
+
+            if macd > signal:
+                confidence += 20
+                reasons.append("Bullish MACD")
+            else:
+                confidence -= 10
+                reasons.append("Bearish MACD")
 
         # -----------------------------
         # Momentum
         # -----------------------------
-        if histogram > 0:
-            confidence += 10
-            reasons.append("Positive Momentum")
-        else:
-            confidence -= 5
-            reasons.append("Negative Momentum")
+        if use_momentum:
+
+            if histogram > 0:
+                confidence += 10
+                reasons.append("Positive Momentum")
+            else:
+                confidence -= 5
+                reasons.append("Negative Momentum")
 
         # -----------------------------
         # Volume
         # -----------------------------
-        if volume_ratio >= min_volume_ratio:
-            confidence += 10
-            reasons.append("Above-average volume")
-        else:
-            confidence -= 10
-            reasons.append("Below-average volume")
+        if use_volume:
+
+            if volume_ratio >= min_volume_ratio:
+                confidence += 10
+                reasons.append("Above-average volume")
+            else:
+                confidence -= 10
+                reasons.append("Below-average volume")
 
         # -----------------------------
         # Clamp to 0-100
@@ -133,15 +151,17 @@ class SignalEngine:
         # small relative to price, the market is chop rather than
         # trending — refuse to BUY/SELL off noise.
         # -----------------------------
-        ema_spread_pct = abs(ema_fast - ema_slow) / price * 100
-        macd_hist_pct = abs(histogram) / price * 100
+        if use_chop_gate:
 
-        if (
-            ema_spread_pct < min_ema_spread_pct
-            and macd_hist_pct < min_macd_hist_pct
-        ):
-            decision = "HOLD"
-            reasons.append("No clear trend (choppy market)")
+            ema_spread_pct = abs(ema_fast - ema_slow) / price * 100
+            macd_hist_pct = abs(histogram) / price * 100
+
+            if (
+                ema_spread_pct < min_ema_spread_pct
+                and macd_hist_pct < min_macd_hist_pct
+            ):
+                decision = "HOLD"
+                reasons.append("No clear trend (choppy market)")
 
         return {
             "decision": decision,
