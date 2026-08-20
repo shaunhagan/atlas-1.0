@@ -180,29 +180,56 @@ rather than independent information, especially right at MACD
 crossover points where the histogram briefly flips sign before the
 trend actually resolves either way.
 
-## What's next (unexplored, in rough priority order)
+## 2026-08-20 -- Second historical window: RESULT REVERSES, urgent to resolve
 
-1. ~~Validate the volume-ranking result properly~~ -- DONE, see
-   2026-08-18 (cont.) entry above. Confirmed out-of-sample with friction
-   included: +0.610%/trade over 88 held-out trades.
-2. ~~Exit-parameter sweep (ATR multiplier / risk:reward / confidence
-   threshold)~~ -- DONE, see same entry. No improvement found; current
-   live values already appear near-optimal in that parameter space.
-3. **Signal formula itself has never been tuned or validated** -- this
-   is now the top priority. Only exit parameters have been swept so far.
-   The earlier 507-trade backtest found the 70-79 confidence bucket
-   outperforming 80-99, suggesting some scoring component may be
-   actively unhelpful. Try component ablation: does removing/reweighting
-   RSI, MACD, EMA-spread, or the volume score change out-of-sample
-   expectancy? Use the same train/test discipline as the exit sweep --
-   whatever "wins" must hold up on a held-out period with a meaningful
-   trade count (learn from the ATR=20 rejection above).
-4. **Multi-timeframe confirmation** -- require 1h trend agreement before
-   a 5m entry. Common fix for exactly this kind of "looks fine, doesn't
-   hold up" signal problem. Not yet attempted.
-5. **A second, non-overlapping historical window.** Everything so far is
-   one 30-day period with one train/test split inside it. A real
-   validation needs testing across multiple distinct time windows (e.g.
-   a different prior month) to rule out this period being unusual.
-6. Wider/finer exit-parameter grids only if #3 or #4 change the picture
+Ran `validate_window.py`: current live config (with the momentum fix
+applied) on a second, non-overlapping 30-day window ending 35 days ago
+(40 symbols, 5-day gap from the primary window so there's no overlap
+at all).
+
+**Result: 377 trades, 18.6% win rate, -1.390% expectancy.** Solidly
+negative, on a large sample. This directly contradicts every positive
+result found so far -- the primary window's held-out test
+(+0.610%/+1.112% with the momentum fix) and live trading itself
+(+5.98% return, 39.5% win rate as of this same day).
+
+**This is a serious warning sign, not a minor caveat.** Two readings,
+neither comfortable:
+1. The strategy's "edge" may be regime-dependent (works in the market
+   conditions of the last ~30 days, not in the conditions 35-65 days
+   ago) rather than a durable, general edge.
+2. The train/test split inside the primary window protects against
+   overfitting *within* that window, but does nothing to protect
+   against the whole window being an unusually favourable month --
+   which is exactly what this result suggests happened.
+
+**Do not treat live trading's current positive results as confirmation
+the strategy is "solved."** They may simply mean the live window has
+so far resembled the primary backtest window's conditions, not the
+second window's. Needs discussion on how to proceed -- e.g. a market
+regime filter (trade only when conditions resemble the profitable
+window?), accepting the strategy is conditionally profitable and sizing
+down accordingly, or treating this as inconclusive pending a third
+window before drawing any conclusion. Not resolved in this session.
+
+## What's next (in rough priority order)
+
+1. ~~Validate the volume-ranking result~~ -- DONE (2026-08-18).
+2. ~~Exit-parameter sweep~~ -- DONE (2026-08-18). No improvement over
+   current live values found.
+3. ~~Signal component ablation~~ -- DONE (2026-08-18). Momentum
+   component confirmed harmful and disabled; RSI/MACD/volume/chop-gate
+   all confirmed load-bearing.
+4. ~~A second, non-overlapping historical window~~ -- DONE, see entry
+   directly above. **Result reverses everything -- this is now the
+   top priority to understand, not multi-timeframe confirmation.**
+5. **Understand the regime dependency from the entry above.** A third
+   historical window (e.g. 65-95 days ago) would help tell "one bad
+   month" apart from "systematically regime-dependent." Consider also
+   checking what was different about market conditions in the losing
+   window (e.g. BTC trend/volatility during that period vs the winning
+   one) before concluding anything.
+6. **Multi-timeframe confirmation** -- still not attempted, but
+   secondary to resolving #5 first.
+7. Wider/finer exit-parameter grids only if #5 or #6 change the picture
    enough to be worth revisiting -- not before, given #2's conclusion.
