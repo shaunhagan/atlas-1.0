@@ -50,17 +50,28 @@ DATA_FOLDER.mkdir(exist_ok=True)
 # HISTORICAL DATA FETCH / CACHE
 # ============================================================
 
-def _cache_path(symbol):
+def _cache_path(symbol, days=BACKTEST_DAYS, end_days_ago=0):
 
     safe_name = symbol.replace("/", "_")
+
+    if end_days_ago:
+        return DATA_FOLDER / f"{safe_name}_{days}d_end{end_days_ago}d.csv"
 
     return DATA_FOLDER / f"{safe_name}.csv"
 
 
-def fetch_history(symbol, days=BACKTEST_DAYS):
-    """Fetch (or load cached) OHLCV history for one symbol."""
+def fetch_history(symbol, days=BACKTEST_DAYS, end_days_ago=0):
+    """
+    Fetch (or load cached) OHLCV history for one symbol.
 
-    cache_file = _cache_path(symbol)
+    end_days_ago shifts the whole window back in time -- e.g.
+    end_days_ago=35 fetches `days` days of history ending 35 days
+    ago instead of ending now. Used to validate findings on a
+    second, non-overlapping historical period. end_days_ago=0
+    (default) preserves the original behaviour exactly.
+    """
+
+    cache_file = _cache_path(symbol, days, end_days_ago)
 
     if cache_file.exists():
 
@@ -68,7 +79,9 @@ def fetch_history(symbol, days=BACKTEST_DAYS):
 
         return df.values.tolist()
 
-    since = exchange.now_ms() - days * 24 * 60 * 60 * 1000
+    end_ms = exchange.now_ms() - end_days_ago * 24 * 60 * 60 * 1000
+
+    since = end_ms - days * 24 * 60 * 60 * 1000
 
     all_candles = []
 
@@ -90,7 +103,15 @@ def fetch_history(symbol, days=BACKTEST_DAYS):
 
         since = batch[-1][0] + 1
 
+        if since >= end_ms:
+            break
+
         time.sleep(0.05)
+
+    all_candles = [
+        candle for candle in all_candles
+        if candle[0] <= end_ms
+    ]
 
     if not all_candles:
         return []
