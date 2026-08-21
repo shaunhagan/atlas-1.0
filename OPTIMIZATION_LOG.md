@@ -212,6 +212,33 @@ window?), accepting the strategy is conditionally profitable and sizing
 down accordingly, or treating this as inconclusive pending a third
 window before drawing any conclusion. Not resolved in this session.
 
+## 2026-08-21 -- Third window + regime characterization: confirmed, not "one bad month"
+
+Ran a third window (30 days ending 65 days ago) plus a BTC/USDT regime
+characterization (total % change and per-candle return volatility) on
+all three windows:
+
+| Window | BTC change | BTC volatility | Trades | Win Rate | Expectancy |
+|---|---|---|---|---|---|
+| Primary (last 30d) | +0.21% | 0.080% | -- | -- | +0.610%/+1.112% (test period) |
+| Second (35-65d ago) | -2.42% | 0.128% (+60%) | 377 | 18.6% | -1.390% |
+| Third (65-95d ago) | -14.67% | 0.146% (+83%) | 420 | 21.7% | -0.627% |
+
+**Confirmed: this is systematic regime dependency, not one unusual
+month.** Three independent windows, consistent pattern -- the strategy
+is only profitable when BTC (proxy for overall market conditions) is
+calm and flat/mildly bullish. Both higher-volatility windows lost
+money regardless of how far BTC actually declined (win rate barely
+differs between -2.42% and -14.67% BTC moves -- it's the volatility
+elevation that seems to matter, not decline magnitude specifically).
+
+**Tested one pre-chosen hypothesis:** gate new entries on BTC's own
+trailing 200-candle volatility being below 0.10% (`regime_filter_test.py`,
+threshold picked once up front from the aggregate levels above, NOT
+fit per-window -- fitting a threshold to each window's already-known
+outcome would repeat the ATR=20 overfitting mistake). Results in the
+following dated entry.
+
 ## What's next (in rough priority order)
 
 1. ~~Validate the volume-ranking result~~ -- DONE (2026-08-18).
@@ -220,16 +247,12 @@ window before drawing any conclusion. Not resolved in this session.
 3. ~~Signal component ablation~~ -- DONE (2026-08-18). Momentum
    component confirmed harmful and disabled; RSI/MACD/volume/chop-gate
    all confirmed load-bearing.
-4. ~~A second, non-overlapping historical window~~ -- DONE, see entry
-   directly above. **Result reverses everything -- this is now the
-   top priority to understand, not multi-timeframe confirmation.**
-5. **Understand the regime dependency from the entry above.** A third
-   historical window (e.g. 65-95 days ago) would help tell "one bad
-   month" apart from "systematically regime-dependent." Consider also
-   checking what was different about market conditions in the losing
-   window (e.g. BTC trend/volatility during that period vs the winning
-   one) before concluding anything.
-6. **Multi-timeframe confirmation** -- still not attempted, but
-   secondary to resolving #5 first.
-7. Wider/finer exit-parameter grids only if #5 or #6 change the picture
+4. ~~A second, non-overlapping historical window~~ -- DONE (2026-08-20).
+5. ~~Third window + regime characterization~~ -- DONE, see entry above.
+   Regime dependency confirmed across 3 windows, not one bad month.
+6. **Regime filter result** -- see following entry for whether the
+   volatility-gate hypothesis actually recovers the losing windows.
+7. **Multi-timeframe confirmation** -- still not attempted, now lower
+   priority than resolving whether a regime filter works.
+8. Wider/finer exit-parameter grids only if #6 or #7 change the picture
    enough to be worth revisiting -- not before, given #2's conclusion.

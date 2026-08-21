@@ -138,6 +138,7 @@ def simulate_symbol(
     atr_stop_multiplier=ATR_STOP_MULTIPLIER,
     risk_reward_ratio=RISK_REWARD_RATIO,
     friction_pct=TRADING_FRICTION_PCT,
+    regime_ok_fn=None,
     **signal_kwargs,
 ):
     """
@@ -242,6 +243,9 @@ def simulate_symbol(
         )
 
         if result["decision"] != "BUY":
+            continue
+
+        if regime_ok_fn is not None and not regime_ok_fn(candles[i][0]):
             continue
 
         stop_distance = atr_stop_multiplier * atr
