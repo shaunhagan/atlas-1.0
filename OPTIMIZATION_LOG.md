@@ -239,6 +239,47 @@ fit per-window -- fitting a threshold to each window's already-known
 outcome would repeat the ATR=20 overfitting mistake). Results in the
 following dated entry.
 
+## 2026-08-21 (cont.) -- Regime filter result: helps, doesn't fix
+
+Tested the volatility-gate hypothesis (BTC trailing 200-candle
+volatility < 0.10%, threshold chosen once up front) across all three
+windows:
+
+| Window | No filter | With filter |
+|---|---|---|
+| Primary (calm) | 392 trades, 25.5% WR, +0.754% | 397 trades, 23.7% WR, +0.605% |
+| Second (elevated) | 368 trades, 20.9% WR, -1.092% | 309 trades, 19.1% WR, **-0.910%** |
+| Third (elevated) | 420 trades, 21.7% WR, -0.627% | 283 trades, 24.0% WR, **-0.295%** |
+
+(Trade count went *up* slightly in the primary window with the filter
+on -- not a bug: this backtester holds one position per symbol at a
+time, so blocking an early entry can free a symbol up for a different,
+later entry it would otherwise have missed. Expected side effect of
+the simplified one-position-per-symbol model.)
+
+**Honest read: helps, doesn't fix.** The filter roughly halves the
+loss in the third window and modestly reduces it in the second, while
+barely touching the profitable primary window -- directionally
+confirms volatility is a real factor. But neither losing window
+flips to profitable. A single volatility threshold on BTC alone isn't
+sufficient by itself.
+
+**Not chasing a better threshold by fitting it to these exact 3
+windows** -- with only 3 known outcomes, tuning the threshold to make
+them come out better would be the same overfitting trap as the
+rejected ATR=20 result, just one level up. Real next steps would need
+either more independent windows to validate a refined threshold
+against, or a fundamentally different regime signal (e.g. BTC trend
+direction combined with volatility, not volatility alone).
+
+**Decision point, not resolved in this session:** live bot is still
+running the un-gated config and still performing well in the current
+(evidently calm) regime. Whether to (a) leave it as-is and accept the
+risk that performance could reverse if conditions shift, (b) apply the
+partial regime filter live as a modest safety net even though it
+doesn't fully solve the problem, or (c) invest more in a better regime
+signal before trusting this further -- needs a call from the user.
+
 ## What's next (in rough priority order)
 
 1. ~~Validate the volume-ranking result~~ -- DONE (2026-08-18).
