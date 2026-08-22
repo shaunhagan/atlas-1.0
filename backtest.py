@@ -31,6 +31,8 @@ from config import (
     ATR_STOP_MULTIPLIER,
     RISK_REWARD_RATIO,
     TRADING_FRICTION_PCT,
+    EMA_FAST,
+    EMA_SLOW,
 )
 
 from exchange import exchange
@@ -129,6 +131,58 @@ def fetch_history(symbol, days=BACKTEST_DAYS, end_days_ago=0):
 
 
 # ============================================================
+# HIGHER-TIMEFRAME TREND FILTER
+# ============================================================
+
+def build_htf_trend_filter(candles_5m, htf="1h"):
+    """
+    Resamples the already-fetched 5m candles up to a higher
+    timeframe (no extra API calls) and returns a function
+    htf_trend_ok(ts) -> bool: is that higher-timeframe EMA_FAST >
+    EMA_SLOW as of the most recently COMPLETED higher-timeframe bar
+    before ts?
+
+    shift(1) before reindexing onto the 5m grid is what prevents
+    lookahead bias -- a bar labelled H only becomes visible starting
+    at H + one bar, matching what a live bot would actually know at
+    that moment (the current higher-timeframe bar is still forming).
+    """
+
+    df = pd.DataFrame(
+        candles_5m,
+        columns=["timestamp", "open", "high", "low", "close", "volume"],
+    )
+
+    df["dt"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+    indexed = df.set_index("dt")
+
+    htf_closes = indexed["close"].resample(htf, label="left", closed="left").last()
+
+    htf_closes = htf_closes.dropna()
+
+    ema_fast_htf = htf_closes.ewm(span=EMA_FAST, adjust=False).mean()
+    ema_slow_htf = htf_closes.ewm(span=EMA_SLOW, adjust=False).mean()
+
+    trend_bullish = (ema_fast_htf > ema_slow_htf).shift(1)
+
+    trend_by_ts = trend_bullish.reindex(indexed.index, method="ffill")
+
+    trend_by_ms = dict(zip(df["timestamp"], trend_by_ts.values))
+
+    def htf_trend_ok(ts):
+
+        value = trend_by_ms.get(ts)
+
+        if value is None or pd.isna(value):
+            return True
+
+        return bool(value)
+
+    return htf_trend_ok
+
+
+# ============================================================
 # SIMULATE ONE SYMBOL
 # ============================================================
 
@@ -139,6 +193,8 @@ def simulate_symbol(
     risk_reward_ratio=RISK_REWARD_RATIO,
     friction_pct=TRADING_FRICTION_PCT,
     regime_ok_fn=None,
+    require_htf_confirmation=False,
+    htf="1h",
     **signal_kwargs,
 ):
     """
@@ -151,7 +207,17 @@ def simulate_symbol(
     override (min_confidence, min_ema_spread_pct, min_macd_hist_pct,
     min_volume_ratio) can be overridden for parameter sweeps -- they
     default to the live config values.
+
+    require_htf_confirmation gates new entries on this SAME symbol's
+    own higher-timeframe trend (see build_htf_trend_filter) -- built
+    internally from `candles` since it's the same series already
+    available, no extra fetch needed.
     """
+
+    htf_trend_ok = (
+        build_htf_trend_filter(candles, htf)
+        if require_htf_confirmation else None
+    )
 
     trades = []
 
@@ -246,6 +312,9 @@ def simulate_symbol(
             continue
 
         if regime_ok_fn is not None and not regime_ok_fn(candles[i][0]):
+            continue
+
+        if htf_trend_ok is not None and not htf_trend_ok(candles[i][0]):
             continue
 
         stop_distance = atr_stop_multiplier * atr
