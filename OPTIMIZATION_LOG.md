@@ -280,6 +280,41 @@ partial regime filter live as a modest safety net even though it
 doesn't fully solve the problem, or (c) invest more in a better regime
 signal before trusting this further -- needs a call from the user.
 
+## 2026-08-22 -- Volatility filter applied live; trend-combined filter rejected
+
+**Applied the volatility-only regime filter to live paper trading**
+(new BUY entries gated on BTC trailing-200-candle volatility < 0.10%,
+never gates exits). Justified by real-time evidence, not just
+backtest: live BTC volatility measured at 0.138-0.153% today --
+already above both historical losing windows (0.128%/0.146%) -- right
+as live drawdown jumped from 2.00% to 11.11% for the first time.
+`check_market_regime()` in scanner.py, config knobs in config.py under
+"MARKET REGIME FILTER". Live bot restarted, no portfolio reset needed.
+
+**Tested combining volatility with BTC trend (price > EMA50) --
+rejected.** Both conditions pre-chosen, not fit per-window.
+
+| Window | No filter | Volatility only | Volatility + trend |
+|---|---|---|---|
+| Primary (good) | +0.456% | +0.327% | **+0.015%** |
+| Second (bad) | -1.167% | -1.047% | -0.791% |
+| Third (bad) | -0.651% | -0.272% | -0.145% |
+
+Adding trend squeezes a little more protection out of the bad windows
+but costs nearly all the edge in the good window to get there -- not a
+net improvement. Keeping the live filter volatility-only.
+
+**Methodology note:** `fetch_history()`'s cache never expires, so
+"Primary (last 30d)" has silently become a fixed snapshot from
+whenever it was first cached (~2026-08-18-20) rather than a true
+rolling last-30-days as of each run -- this is why the primary
+window's exact numbers drift slightly between test runs even with
+identical config. Doesn't invalidate the regime-dependency finding
+(all three windows are still consistently defined, comparable to each
+other), but exact percentages should be read as approximate. Not
+fixed this session -- would need cache-freshness logic if it matters
+for future work.
+
 ## What's next (in rough priority order)
 
 1. ~~Validate the volume-ranking result~~ -- DONE (2026-08-18).

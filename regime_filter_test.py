@@ -8,20 +8,21 @@ OPTIMIZATION_LOG.md (2026-08-20/21): the strategy shows positive
 expectancy only in the calm/flat window (BTC volatility ~0.080%,
 change +0.21%) and negative expectancy in both higher-volatility,
 declining windows (~0.128%/0.146% volatility, -2.42%/-14.67% change).
+A volatility-only gate (<0.10%) helped but didn't fully fix either
+losing window.
 
-This tests one specific, pre-chosen hypothesis -- gate new entries on
-BTC's own trailing volatility being below a threshold -- against all
-three known windows. The threshold (0.10%, roughly the midpoint
-between the calm and elevated aggregate levels already observed) is
-chosen ONCE, up front, not fit per-window. Fitting a threshold
-separately to each window's known outcome would be the same
-overfitting trap as the rejected ATR=20 sweep result.
+This tests a second, still-pre-chosen hypothesis: combine the
+volatility gate with BTC's own trend (price > EMA50, same EMA_SLOW
+period the signal engine itself uses) -- both conditions chosen once,
+up front, not fit per-window, for the same overfitting-avoidance
+reason as before.
 """
 
 import pandas as pd
 from tabulate import tabulate
 
 import backtest
+from config import EMA_SLOW
 
 
 REGIME_SYMBOL_LIMIT = 40
@@ -37,7 +38,7 @@ WINDOWS = [
 ]
 
 
-def build_regime_filter(btc_candles, threshold_pct, period=REGIME_LOOKBACK):
+def build_regime_filters(btc_candles, threshold_pct, period=REGIME_LOOKBACK):
 
     df = pd.DataFrame(
         btc_candles,
@@ -48,9 +49,13 @@ def build_regime_filter(btc_candles, threshold_pct, period=REGIME_LOOKBACK):
 
     rolling_vol_pct = returns.rolling(period).std() * 100
 
-    vol_by_ts = dict(zip(df["timestamp"], rolling_vol_pct))
+    rolling_ema_slow = df["close"].ewm(span=EMA_SLOW, adjust=False).mean()
 
-    def regime_ok(ts):
+    vol_by_ts = dict(zip(df["timestamp"], rolling_vol_pct))
+    price_by_ts = dict(zip(df["timestamp"], df["close"]))
+    ema_by_ts = dict(zip(df["timestamp"], rolling_ema_slow))
+
+    def volatility_only(ts):
 
         vol = vol_by_ts.get(ts)
 
@@ -59,7 +64,18 @@ def build_regime_filter(btc_candles, threshold_pct, period=REGIME_LOOKBACK):
 
         return vol < threshold_pct
 
-    return regime_ok
+    def volatility_and_trend(ts):
+
+        vol = vol_by_ts.get(ts)
+        price = price_by_ts.get(ts)
+        ema = ema_by_ts.get(ts)
+
+        if vol is None or pd.isna(vol) or price is None or ema is None or pd.isna(ema):
+            return True
+
+        return (vol < threshold_pct) and (price > ema)
+
+    return volatility_only, volatility_and_trend
 
 
 def run():
@@ -83,18 +99,22 @@ def run():
             "BTC/USDT", days=30, end_days_ago=end_days_ago,
         )
 
-        regime_ok = build_regime_filter(btc_candles, VOLATILITY_THRESHOLD_PCT)
-
-        baseline_trades = backtest.run_backtest(
-            symbols=symbols, candle_cache=cache, verbose=False,
+        volatility_only, volatility_and_trend = build_regime_filters(
+            btc_candles, VOLATILITY_THRESHOLD_PCT,
         )
 
-        filtered_trades = backtest.run_backtest(
-            symbols=symbols, candle_cache=cache, verbose=False,
-            regime_ok_fn=regime_ok,
-        )
+        configs = [
+            ("No filter", None),
+            ("Volatility only", volatility_only),
+            ("Volatility + trend", volatility_and_trend),
+        ]
 
-        for tag, trades in [("No filter", baseline_trades), ("With regime filter", filtered_trades)]:
+        for tag, regime_fn in configs:
+
+            trades = backtest.run_backtest(
+                symbols=symbols, candle_cache=cache, verbose=False,
+                regime_ok_fn=regime_fn,
+            )
 
             wins = [t for t in trades if t["pnl_pct"] > 0]
             win_rate = len(wins) / len(trades) * 100 if trades else 0.0
@@ -103,7 +123,7 @@ def run():
             rows.append([label, tag, len(trades), f"{win_rate:.1f}%", f"{expectancy:+.3f}%"])
 
     print("\n" + "=" * 80)
-    print(f"REGIME FILTER TEST (BTC trailing {REGIME_LOOKBACK}-candle volatility < {VOLATILITY_THRESHOLD_PCT}%)")
+    print(f"REGIME FILTER TEST v2 (volatility < {VOLATILITY_THRESHOLD_PCT}%, trend = BTC price > EMA{EMA_SLOW})")
     print("=" * 80)
     print(tabulate(rows, headers=["Window", "Config", "Trades", "Win Rate", "Expectancy"]))
     print("=" * 80)
