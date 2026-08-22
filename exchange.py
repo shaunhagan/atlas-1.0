@@ -92,5 +92,14 @@ class Exchange:
 
         return self.exchange.milliseconds()
 
+    def get_htf_candles(self, symbol, timeframe="1h", limit=100):
+        """Fetch recent higher-timeframe candles for multi-timeframe confirmation."""
+
+        return self.exchange.fetch_ohlcv(
+            symbol,
+            timeframe=timeframe,
+            limit=limit
+        )
+
 
 exchange = Exchange()

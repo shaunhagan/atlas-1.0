@@ -9,8 +9,8 @@ from config import (
     SCAN_INTERVAL,
     MIN_CONFIDENCE,
     SHOW_TOP,
-    REGIME_SYMBOL,
-    REGIME_VOLATILITY_THRESHOLD_PCT,
+    HTF_TIMEFRAME,
+    HTF_CANDLE_LIMIT,
 )
 
 from exchange import exchange
@@ -314,35 +314,41 @@ def display_summary(results):
 
 
 # ============================================================
-# MARKET REGIME CHECK
+# MULTI-TIMEFRAME CONFIRMATION
 # ============================================================
 
-def check_market_regime():
+def check_htf_confirmation(symbol):
     """
-    Backtesting found this strategy is only profitable when the
-    broader market is calm (OPTIMIZATION_LOG.md, 2026-08-20/21,
-    confirmed across 3 independent historical windows). Gate new
-    entries -- never exits -- on BTC's own trailing volatility.
-    Returns True (ok to open new positions) or False (elevated
-    volatility, hold off on new entries only).
+    Backtesting found requiring higher-timeframe (1h) trend agreement
+    before a 5m entry beats the plain signal on every tested window --
+    unlike a volatility-only regime gate, it improves the good window
+    too, not just defends the bad ones (OPTIMIZATION_LOG.md,
+    2026-08-22/23). Checked lazily, only for symbols that already got
+    a BUY on the 5m signal, to avoid an extra API call per symbol per
+    scan cycle. Returns True (confirmed, ok to enter) or False.
     """
 
     try:
 
-        candles = exchange.get_candles(REGIME_SYMBOL)
+        candles = exchange.get_htf_candles(
+            symbol,
+            timeframe=HTF_TIMEFRAME,
+            limit=HTF_CANDLE_LIMIT,
+        )
+
+        if not candles or len(candles) < 60:
+            return True
 
         closes = [float(candle[4]) for candle in candles]
 
-        volatility = Indicators.volatility(closes)
+        ema_fast = Indicators.ema_fast(closes)
+        ema_slow = Indicators.ema_slow(closes)
 
-        if volatility is None or volatility != volatility:
-            return True
-
-        return volatility < REGIME_VOLATILITY_THRESHOLD_PCT
+        return ema_fast > ema_slow
 
     except Exception as error:
 
-        print(f"Regime check error (defaulting to allow): {error}")
+        print(f"HTF confirmation check error for {symbol} (defaulting to allow): {error}")
 
         return True
 
@@ -354,15 +360,6 @@ def check_market_regime():
 def execute_paper_trades(results):
     """Send qualifying signals to the paper trader."""
 
-    regime_ok = check_market_regime()
-
-    if not regime_ok:
-        print(
-            f"\nMarket regime check: {REGIME_SYMBOL} volatility "
-            f"elevated -- new entries paused, existing positions "
-            f"still managed normally."
-        )
-
     for trade in results:
 
         symbol = trade["symbol"]
@@ -371,7 +368,13 @@ def execute_paper_trades(results):
         price = trade["price"]
         atr = trade["atr"]
 
-        if decision == "BUY" and not regime_ok:
+        if decision == "BUY" and not check_htf_confirmation(symbol):
+
+            print(
+                f"\n{symbol}: BUY signal but 1h trend not "
+                f"confirmed -- entry skipped."
+            )
+
             continue
 
         execute_paper_trade(
