@@ -315,6 +315,47 @@ other), but exact percentages should be read as approximate. Not
 fixed this session -- would need cache-freshness logic if it matters
 for future work.
 
+## 2026-08-22/23 -- Multi-timeframe (1h) confirmation: beats the volatility filter, now live
+
+Tested requiring per-symbol 1h trend agreement (EMA_FAST > EMA_SLOW on
+1h, resampled from already-cached 5m data via `build_htf_trend_filter()`
+in backtest.py, shift(1) before reindexing to prevent lookahead) before
+allowing a 5m BUY. `htf_confirmation_test.py`, same 3 windows, 4 configs:
+
+| Window | No filter | Volatility (was live) | **1h confirmation** | Volatility + 1h |
+|---|---|---|---|---|
+| Primary (good) | +0.456% | +0.327% | **+1.106%** | +1.008% |
+| Second (bad) | -1.167% | -1.047% | **-0.869%** | -1.062% |
+| Third (bad) | -0.651% | -0.272% | -0.423% | **-0.180%** |
+
+**1h confirmation alone wins outright on Primary and Second, and is
+competitive (not best, but far better than no-filter) on Third.**
+Unlike the volatility gate, it doesn't just play defense -- it more
+than doubles the edge in the profitable window (+0.456% -> +1.106%)
+while *also* reducing losses in the bad ones. The stacked
+volatility+1h combo isn't a clear win over 1h-alone (better on Third,
+worse on Second) and adds complexity for it.
+
+**Applied live, replacing the volatility filter** (which was live for
+about 2 hours). `check_htf_confirmation()` in scanner.py, checked
+lazily only for symbols that already got a 5m BUY (avoids an extra API
+call every scan cycle for all ~150 symbols). Config: `HTF_TIMEFRAME`/
+`HTF_CANDLE_LIMIT` in config.py. Volatility filter config/tooling kept
+for research (regime_filter_test.py still works), just not read by the
+live scanner path anymore. Live bot restarted, no portfolio reset
+needed (only future entries affected). Confirmed working immediately:
+open positions ticked up (28->29, a new entry got allowed) right after
+restart, whereas the volatility filter had been fully blocking new
+entries for hours before that.
+
+**Not yet done:** train/test discipline within each window for this
+result specifically (each window's 4-config comparison uses the same
+full window for all 4 -- there's no held-out split here the way the
+original exit-parameter sweep had). The cross-window consistency (wins
+on 2 of 3, competitive on the 3rd) is reassuring but this hasn't had
+the same rigor as earlier findings. Worth a proper train/test pass if
+questioned later.
+
 ## What's next (in rough priority order)
 
 1. ~~Validate the volume-ranking result~~ -- DONE (2026-08-18).
@@ -324,11 +365,17 @@ for future work.
    component confirmed harmful and disabled; RSI/MACD/volume/chop-gate
    all confirmed load-bearing.
 4. ~~A second, non-overlapping historical window~~ -- DONE (2026-08-20).
-5. ~~Third window + regime characterization~~ -- DONE, see entry above.
+5. ~~Third window + regime characterization~~ -- DONE (2026-08-21).
    Regime dependency confirmed across 3 windows, not one bad month.
-6. **Regime filter result** -- see following entry for whether the
-   volatility-gate hypothesis actually recovers the losing windows.
-7. **Multi-timeframe confirmation** -- still not attempted, now lower
-   priority than resolving whether a regime filter works.
-8. Wider/finer exit-parameter grids only if #6 or #7 change the picture
-   enough to be worth revisiting -- not before, given #2's conclusion.
+6. ~~Regime filter (volatility)~~ -- DONE (2026-08-21/22). Helped but
+   didn't fully fix the losing windows; applied live, then superseded.
+7. ~~Multi-timeframe confirmation~~ -- DONE, see entry above. Beat the
+   volatility filter on every dimension. Now live.
+8. **Proper train/test validation of the 1h confirmation result**
+   specifically (see caveat above) -- next priority, before trusting
+   this as much as the earlier, more rigorously-tested findings.
+9. Consider a 4th historical window (95-125 days ago) to further
+   stress-test both the regime-dependency finding and whether 1h
+   confirmation holds up outside the 3 windows tested so far.
+10. Wider/finer exit-parameter grids only if #8 or #9 change the
+    picture enough to be worth revisiting.
