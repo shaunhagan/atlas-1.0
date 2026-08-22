@@ -15,7 +15,8 @@ from config import (
     MACD_SLOW,
     MACD_SIGNAL,
     VOLUME_PERIOD,
-    ATR_PERIOD
+    ATR_PERIOD,
+    REGIME_LOOKBACK
 )
 
 
@@ -137,3 +138,17 @@ class Indicators:
         ], axis=1).max(axis=1)
 
         return true_range.rolling(period).mean().iloc[-1]
+
+    @staticmethod
+    def volatility(closes, period=REGIME_LOOKBACK):
+        """
+        Trailing per-candle return volatility, as a percentage.
+        Matches regime_filter_test.py's methodology exactly, so the
+        live regime gate is faithful to what was backtested.
+        """
+
+        closes = pd.Series(closes)
+
+        returns = closes.pct_change()
+
+        return returns.tail(period).std() * 100

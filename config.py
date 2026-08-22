@@ -94,6 +94,26 @@ TRADING_FRICTION_PCT = 0.0015
 
 
 # ============================================================
+# MARKET REGIME FILTER
+# ============================================================
+
+# Backtesting (OPTIMIZATION_LOG.md, 2026-08-20/21) found this
+# strategy is only profitable when the broader market is calm --
+# confirmed across 3 independent historical windows. New BUY entries
+# are gated on BTC's own trailing volatility staying below this
+# threshold; existing position exits (stop-loss/take-profit) are
+# NEVER gated by this, only new entries. This is a partial mitigation
+# (backtested to roughly halve losses in high-volatility windows, not
+# eliminate them), not a full fix.
+
+REGIME_SYMBOL = "BTC/USDT"
+
+REGIME_LOOKBACK = 200
+
+REGIME_VOLATILITY_THRESHOLD_PCT = 0.10
+
+
+# ============================================================
 # TECHNICAL INDICATORS
 # ============================================================
 

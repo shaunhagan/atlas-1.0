@@ -9,6 +9,8 @@ from config import (
     SCAN_INTERVAL,
     MIN_CONFIDENCE,
     SHOW_TOP,
+    REGIME_SYMBOL,
+    REGIME_VOLATILITY_THRESHOLD_PCT,
 )
 
 from exchange import exchange
@@ -312,11 +314,54 @@ def display_summary(results):
 
 
 # ============================================================
+# MARKET REGIME CHECK
+# ============================================================
+
+def check_market_regime():
+    """
+    Backtesting found this strategy is only profitable when the
+    broader market is calm (OPTIMIZATION_LOG.md, 2026-08-20/21,
+    confirmed across 3 independent historical windows). Gate new
+    entries -- never exits -- on BTC's own trailing volatility.
+    Returns True (ok to open new positions) or False (elevated
+    volatility, hold off on new entries only).
+    """
+
+    try:
+
+        candles = exchange.get_candles(REGIME_SYMBOL)
+
+        closes = [float(candle[4]) for candle in candles]
+
+        volatility = Indicators.volatility(closes)
+
+        if volatility is None or volatility != volatility:
+            return True
+
+        return volatility < REGIME_VOLATILITY_THRESHOLD_PCT
+
+    except Exception as error:
+
+        print(f"Regime check error (defaulting to allow): {error}")
+
+        return True
+
+
+# ============================================================
 # PAPER TRADING
 # ============================================================
 
 def execute_paper_trades(results):
     """Send qualifying signals to the paper trader."""
+
+    regime_ok = check_market_regime()
+
+    if not regime_ok:
+        print(
+            f"\nMarket regime check: {REGIME_SYMBOL} volatility "
+            f"elevated -- new entries paused, existing positions "
+            f"still managed normally."
+        )
 
     for trade in results:
 
@@ -325,6 +370,9 @@ def execute_paper_trades(results):
         confidence = trade["confidence"]
         price = trade["price"]
         atr = trade["atr"]
+
+        if decision == "BUY" and not regime_ok:
+            continue
 
         execute_paper_trade(
             symbol,
