@@ -356,6 +356,45 @@ on 2 of 3, competitive on the 3rd) is reassuring but this hasn't had
 the same rigor as earlier findings. Worth a proper train/test pass if
 questioned later.
 
+## 2026-08-23 -- Train/test check reveals the 1h confirmation win was partly illusory
+
+Closed the rigor gap flagged in the previous entry: split each
+window's trades into train (first 75%) / test (last 25%, by entry
+time), same discipline as the original exit-parameter sweep.
+
+| Window | Config | Train Exp | **Test Exp (held out)** |
+|---|---|---|---|
+| Primary (good) | No filter | +0.026% | +4.418% |
+| Primary (good) | 1h confirmation | +0.479% | **+5.403%** |
+| Second (bad) | No filter | -1.189% | -0.937% |
+| Second (bad) | 1h confirmation | -0.626% | **-2.578%, 4.0% WR (n=25)** |
+| Third (bad) | No filter | -0.878% | +2.342% |
+| Third (bad) | 1h confirmation | -0.924% | +1.912% (roughly a wash) |
+
+**The full-window aggregate reported in the previous entry was
+misleading.** In the second window, 1h confirmation's apparent
+improvement (-1.167%->-0.869% in the earlier full-window view) was
+concentrated in the train portion and collapsed in the held-out test
+slice to -2.578% at 4.0% win rate -- far worse than doing nothing.
+Third window shows no real benefit in test either way. **Only the
+primary window (current live regime) genuinely holds up.**
+
+**This means: regime-robustness is still an open, unsolved problem.**
+Neither the volatility filter nor 1h confirmation has actually been
+shown to work across regimes under real train/test scrutiny -- both
+looked good on full-window aggregates and both get shakier when
+checked properly. This is the second time a full-window (rather than
+train/test) comparison has overstated a result this project (see also
+the ATR=20 sweep rejection) -- **full-window aggregates without a
+held-out split should not be trusted going forward, only train/test
+results.**
+
+**Not reverting the live bot over this** -- 1h confirmation still
+holds up in the primary window, which is the regime currently being
+traded in, and doing nothing is not obviously better. But confidence
+in this filter should be "promising in current conditions," not
+"validated," and this remains unresolved.
+
 ## What's next (in rough priority order)
 
 1. ~~Validate the volume-ranking result~~ -- DONE (2026-08-18).
@@ -371,11 +410,23 @@ questioned later.
    didn't fully fix the losing windows; applied live, then superseded.
 7. ~~Multi-timeframe confirmation~~ -- DONE, see entry above. Beat the
    volatility filter on every dimension. Now live.
-8. **Proper train/test validation of the 1h confirmation result**
-   specifically (see caveat above) -- next priority, before trusting
-   this as much as the earlier, more rigorously-tested findings.
-9. Consider a 4th historical window (95-125 days ago) to further
-   stress-test both the regime-dependency finding and whether 1h
-   confirmation holds up outside the 3 windows tested so far.
-10. Wider/finer exit-parameter grids only if #8 or #9 change the
-    picture enough to be worth revisiting.
+8. ~~Proper train/test validation of the 1h confirmation result~~ --
+   DONE, see entry directly above. **Result: mostly didn't hold up.
+   Regime-robustness is still unsolved.**
+9. **Find a filter/approach that actually survives train/test within
+   each window, not just full-window aggregates.** This is now the
+   real top priority -- everything tried so far (volatility gate, 1h
+   confirmation) looked good on full-window comparisons and got
+   materially weaker under proper held-out scrutiny. Candidates not
+   yet tried: a stricter/different HTF timeframe (4h instead of 1h?),
+   requiring HTF confirmation AND a minimum trend strength (not just
+   sign), or accepting the strategy may only be reliably tradeable in
+   calm regimes and building actual regime DETECTION (pause trading
+   entirely, don't try to filter individual entries) rather than a
+   per-entry filter.
+10. A 4th historical window (95-125 days ago) would help -- but given
+    #9's finding, more windows without fixing the underlying
+    full-window-vs-test-split gap will just repeat the same trap.
+    Prioritize #9 first.
+11. Wider/finer exit-parameter grids only if #9 changes the picture
+    enough to be worth revisiting.
