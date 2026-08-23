@@ -94,15 +94,17 @@ TRADING_FRICTION_PCT = 0.0015
 
 
 # ============================================================
-# MARKET REGIME FILTER (research/backtesting only, NOT live)
+# MARKET REGIME FILTER (live)
 # ============================================================
 
-# Was live 2026-08-22, superseded the same day by multi-timeframe
-# confirmation below (OPTIMIZATION_LOG.md, 2026-08-22/23 entries) --
-# 1h confirmation beat this on every tested window, including
-# improving the profitable window instead of just defending the bad
-# ones. Kept for regime_filter_test.py / possible future combination
-# research, not read by the live scanner path anymore.
+# New BUY entries are gated on BTC's own trailing volatility staying
+# below this threshold; existing position exits (stop-loss/take-profit)
+# are NEVER gated by this, only new entries. Was live 2026-08-22,
+# briefly superseded by multi-timeframe (HTF) confirmation which looked
+# better on full-window backtests -- but HTF confirmation (both 1h and
+# 4h) failed proper train/test validation, while this filter passed it
+# (held-out test period flips positive in both bad-regime windows, on a
+# larger sample). Re-deployed 2026-08-23 (OPTIMIZATION_LOG.md).
 
 REGIME_SYMBOL = "BTC/USDT"
 
@@ -112,13 +114,14 @@ REGIME_VOLATILITY_THRESHOLD_PCT = 0.10
 
 
 # ============================================================
-# MULTI-TIMEFRAME CONFIRMATION (live)
+# MULTI-TIMEFRAME CONFIRMATION (research/backtesting only, NOT live)
 # ============================================================
 
-# New BUY entries additionally require the higher-timeframe trend
-# (EMA_FAST > EMA_SLOW on this timeframe) to agree with the 5m
-# signal -- never gates exits, only new entries. Checked lazily, only
-# for symbols that already got a BUY on the 5m signal.
+# Tried at both 1h and 4h, both looked good on full-window backtests
+# and both FAILED train/test validation -- made held-out test
+# performance worse than no filter at all in both bad-regime windows
+# (OPTIMIZATION_LOG.md, 2026-08-23). Kept for backtest.py research
+# use (require_htf_confirmation), not read by the live scanner path.
 
 HTF_TIMEFRAME = "1h"
 

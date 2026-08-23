@@ -414,13 +414,19 @@ in this filter should be "promising in current conditions," not
    DONE, see entry directly above. **Result: mostly didn't hold up.
    Regime-robustness is still unsolved.**
 9. ~~Find a filter that survives train/test within each window~~ --
-   TRIED 4h as a candidate, see following entry. **Also rejected.**
-   Both HTF timeframes now ruled out with proper rigor.
-10. A 4th historical window (95-125 days ago) would help -- but given
-    #9's finding, more windows without fixing the underlying
-    full-window-vs-test-split gap will just repeat the same trap.
-11. Wider/finer exit-parameter grids only if #9/#10 change the picture
-    enough to be worth revisiting.
+   TRIED 4h as a candidate, also rejected (both HTF timeframes ruled
+   out). **Then found: the volatility filter itself, checked properly,
+   PASSES.** See entry directly above. Re-deployed live 2026-08-23.
+10. A 4th historical window (95-125 days ago) -- now worth doing,
+    since there's a validated filter to stress-test further rather
+    than just repeating a search that keeps finding non-robust
+    results.
+11. Try to understand WHY the volatility filter (market-wide) works
+    where per-symbol HTF trend didn't -- would help judge whether
+    other market-wide (vs per-symbol) signals are worth trying next,
+    e.g. overall market breadth/correlation.
+12. Wider/finer exit-parameter grids only if #10/#11 change the
+    picture enough to be worth revisiting.
 
 ## 2026-08-23 (cont.) -- 4h confirmation also rejected; live bot reverted
 
@@ -457,3 +463,44 @@ without a result that survives the same level of checking applied
 here. Next attempt at a regime fix should be validated with train/test
 built in from the very first test, not retrofitted after a full-window
 result looks promising (that pattern has now failed twice).
+
+## 2026-08-23 (cont.) -- Volatility filter closes the gap: PASSES train/test, re-deployed
+
+Closed the one remaining gap: the volatility filter itself was never
+checked with the train/test discipline that killed both HTF variants
+-- only ever tested on full-window aggregates. Ran it properly
+(`regime_filter_traintest.py`), held-out test period only:
+
+| Window | No filter | Volatility filter |
+|---|---|---|
+| Primary (good) | +5.384% (n=33) | +5.693% (n=33) -- essentially a wash |
+| Second (bad) | -0.736% (n=28) | **+0.199%** (n=51) -- flips positive, bigger sample |
+| Third (bad) | -0.293% (n=31) | **+1.703%** (n=46) -- flips positive, win rate 19.4%->50.0%, bigger sample |
+
+**This is the real thing.** Unlike both HTF attempts, the volatility
+filter's held-out test performance in both bad-regime windows flips
+from negative to positive, backed by a *larger* test sample (not
+smaller, which would be a red flag) -- the filter blocking some
+early-window entries frees symbols up for later ones, same documented
+mechanism as before, and here it lands on the right side of the
+window's actual outcome.
+
+**Re-deployed live.** `check_market_regime()` restored in scanner.py,
+gating new BUY entries on BTC's trailing 200-candle volatility < 0.10%
+(never gates exits). `check_htf_confirmation()` stays in the code for
+backtest.py research use only, config comments updated to reflect
+current live/not-live status accurately. Live bot restarted, no
+portfolio reset needed.
+
+**Confirmed working immediately:** `check_market_regime()` still
+returns False against real current market data (volatility remains
+elevated, consistent with everything measured this week) -- so new
+entries stay paused right now, exactly as the validated result says
+they should.
+
+**Bigger picture:** this is the first regime-protection result that
+has actually survived the same rigor that killed two other attempts.
+Worth remembering why it worked when the others didn't: it's a
+market-wide (BTC) volatility measure, not a per-symbol trend signal --
+possibly more stable/less noisy than per-symbol 1h/4h trend, which can
+flip on short-term whipsaws. Not fully understood why, just observed.

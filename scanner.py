@@ -11,6 +11,8 @@ from config import (
     SHOW_TOP,
     HTF_TIMEFRAME,
     HTF_CANDLE_LIMIT,
+    REGIME_SYMBOL,
+    REGIME_VOLATILITY_THRESHOLD_PCT,
 )
 
 from exchange import exchange
@@ -319,13 +321,11 @@ def display_summary(results):
 
 def check_htf_confirmation(symbol):
     """
-    Backtesting found requiring higher-timeframe (1h) trend agreement
-    before a 5m entry beats the plain signal on every tested window --
-    unlike a volatility-only regime gate, it improves the good window
-    too, not just defends the bad ones (OPTIMIZATION_LOG.md,
-    2026-08-22/23). Checked lazily, only for symbols that already got
-    a BUY on the 5m signal, to avoid an extra API call per symbol per
-    scan cycle. Returns True (confirmed, ok to enter) or False.
+    NOT used live -- looked good on full-window backtests but failed
+    proper train/test validation at both 1h and 4h (made held-out
+    test performance WORSE in both bad-regime windows, not better).
+    See OPTIMIZATION_LOG.md 2026-08-23. Kept for research/backtesting
+    only (backtest.py's require_htf_confirmation).
     """
 
     try:
@@ -354,6 +354,41 @@ def check_htf_confirmation(symbol):
 
 
 # ============================================================
+# MARKET REGIME CHECK (volatility)
+# ============================================================
+
+def check_market_regime():
+    """
+    Unlike the two rejected HTF confirmation variants, this DID
+    survive proper train/test validation: in both bad-regime windows,
+    the held-out test period flips from negative to positive with
+    this filter on, with a larger (not smaller) test sample backing
+    it up (OPTIMIZATION_LOG.md, 2026-08-23). Gates new entries only,
+    never exits. Returns True (ok to open new positions) or False
+    (elevated volatility, hold off on new entries only).
+    """
+
+    try:
+
+        candles = exchange.get_candles(REGIME_SYMBOL)
+
+        closes = [float(candle[4]) for candle in candles]
+
+        volatility = Indicators.volatility(closes)
+
+        if volatility is None or volatility != volatility:
+            return True
+
+        return volatility < REGIME_VOLATILITY_THRESHOLD_PCT
+
+    except Exception as error:
+
+        print(f"Regime check error (defaulting to allow): {error}")
+
+        return True
+
+
+# ============================================================
 # PAPER TRADING
 # ============================================================
 
@@ -361,14 +396,20 @@ def execute_paper_trades(results):
     """
     Send qualifying signals to the paper trader.
 
-    No regime/HTF gate here -- both the volatility filter and 1h/4h
-    multi-timeframe confirmation were tried and rejected after proper
-    train/test scrutiny (OPTIMIZATION_LOG.md, 2026-08-23): both looked
-    good on full-window aggregates but made held-out test performance
-    WORSE in the bad-regime windows, not better. check_htf_confirmation
-    is kept above for backtesting/research use, just not called here.
-    Regime-robustness remains an open, unsolved problem.
+    Gates new BUY entries on the volatility regime filter -- the one
+    regime-protection approach that survived proper train/test
+    validation (OPTIMIZATION_LOG.md, 2026-08-23; two HTF confirmation
+    variants were tried and rejected first). Never gates exits.
     """
+
+    regime_ok = check_market_regime()
+
+    if not regime_ok:
+        print(
+            f"\nMarket regime check: {REGIME_SYMBOL} volatility "
+            f"elevated -- new entries paused, existing positions "
+            f"still managed normally."
+        )
 
     for trade in results:
 
@@ -377,6 +418,9 @@ def execute_paper_trades(results):
         confidence = trade["confidence"]
         price = trade["price"]
         atr = trade["atr"]
+
+        if decision == "BUY" and not regime_ok:
+            continue
 
         execute_paper_trade(
             symbol,
