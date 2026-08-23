@@ -4,12 +4,13 @@ ATLAS AI
 Multi-Timeframe Confirmation -- Train/Test Validation
 =========================================
 
-htf_confirmation_test.py showed 1h confirmation beating the volatility
-filter on full-window aggregates across 3 windows, but without the
-held-out-period discipline optimize.py used for the exit-parameter
-sweep. This re-checks it: within each window, does the improvement
-hold on the last 25% of trades (by entry time), not just the full
-window average?
+OPTIMIZATION_LOG.md 2026-08-23: a proper train/test check (this
+script) showed 1h confirmation's full-window win was partly illusory
+-- it collapsed in one window's held-out test slice. This version
+also tests 4h as a candidate replacement/addition -- a slower,
+smoother trend signal that may be less prone to the same short-term
+whipsaw that likely explains 1h's fragility. Train/test discipline is
+built in from the start this time, not added after the fact.
 """
 
 from tabulate import tabulate
@@ -51,7 +52,8 @@ def run():
 
         for tag, kwargs in [
             ("No filter", {}),
-            ("1h confirmation", {"require_htf_confirmation": True}),
+            ("1h confirmation", {"require_htf_confirmation": True, "htf": "1h"}),
+            ("4h confirmation", {"require_htf_confirmation": True, "htf": "4h"}),
         ]:
 
             trades = backtest.run_backtest(
@@ -70,7 +72,7 @@ def run():
             ])
 
     print("\n" + "=" * 110)
-    print("1H CONFIRMATION -- TRAIN/TEST VALIDATION (per window, last 25% of trades held out)")
+    print("HTF CONFIRMATION -- TRAIN/TEST VALIDATION (per window, last 25% of trades held out)")
     print("=" * 110)
     print(tabulate(
         rows,
