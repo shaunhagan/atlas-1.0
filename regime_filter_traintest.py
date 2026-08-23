@@ -1,0 +1,92 @@
+"""
+=========================================
+ATLAS AI
+Volatility Regime Filter -- Train/Test Validation
+=========================================
+
+The volatility filter (regime_filter_test.py) was only ever checked
+against full-window aggregates, never with the train/test discipline
+that later revealed both HTF confirmation variants looked good
+full-window and failed out-of-sample (OPTIMIZATION_LOG.md, 2026-08-23).
+Closing that gap: does the volatility filter actually hold up on
+held-out test data, or does it have the same problem?
+"""
+
+from tabulate import tabulate
+
+import backtest
+import optimize
+import regime_filter_test as regime_test
+
+
+VALIDATION_SYMBOL_LIMIT = 40
+
+WINDOWS = [
+    ("Primary (last 30d)", 0),
+    ("Second (35-65d ago)", 35),
+    ("Third (65-95d ago)", 65),
+]
+
+
+def run():
+
+    symbols = backtest.exchange.get_markets()[:VALIDATION_SYMBOL_LIMIT]
+
+    rows = []
+
+    for label, end_days_ago in WINDOWS:
+
+        print(f"\n--- {label} ---")
+
+        cache = {}
+
+        for symbol in symbols:
+            cache[symbol] = backtest.fetch_history(
+                symbol, days=30, end_days_ago=end_days_ago,
+            )
+
+        btc_candles = cache.get("BTC/USDT") or backtest.fetch_history(
+            "BTC/USDT", days=30, end_days_ago=end_days_ago,
+        )
+
+        volatility_only, _ = regime_test.build_regime_filters(
+            btc_candles, regime_test.VOLATILITY_THRESHOLD_PCT,
+        )
+
+        split_ts = backtest.exchange.now_ms() - int(
+            (end_days_ago + backtest.BACKTEST_DAYS * optimize.TEST_FRACTION)
+            * 24 * 60 * 60 * 1000
+        )
+
+        for tag, kwargs in [
+            ("No filter", {}),
+            ("Volatility filter", {"regime_ok_fn": volatility_only}),
+        ]:
+
+            trades = backtest.run_backtest(
+                symbols=symbols, candle_cache=cache, verbose=False, **kwargs,
+            )
+
+            train, test = optimize.split_trades(trades, split_ts)
+
+            train_stats = optimize.summarise(train)
+            test_stats = optimize.summarise(test)
+
+            rows.append([
+                label, tag,
+                train_stats["count"], f"{train_stats['win_rate']:.1f}%", f"{train_stats['expectancy']:+.3f}%",
+                test_stats["count"], f"{test_stats['win_rate']:.1f}%", f"{test_stats['expectancy']:+.3f}%",
+            ])
+
+    print("\n" + "=" * 110)
+    print("VOLATILITY FILTER -- TRAIN/TEST VALIDATION (per window, last 25% of trades held out)")
+    print("=" * 110)
+    print(tabulate(
+        rows,
+        headers=["Window", "Config", "Train N", "Train WR", "Train Exp", "Test N", "Test WR", "Test Exp"],
+    ))
+    print("=" * 110)
+
+
+if __name__ == "__main__":
+    run()
