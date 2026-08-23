@@ -413,20 +413,47 @@ in this filter should be "promising in current conditions," not
 8. ~~Proper train/test validation of the 1h confirmation result~~ --
    DONE, see entry directly above. **Result: mostly didn't hold up.
    Regime-robustness is still unsolved.**
-9. **Find a filter/approach that actually survives train/test within
-   each window, not just full-window aggregates.** This is now the
-   real top priority -- everything tried so far (volatility gate, 1h
-   confirmation) looked good on full-window comparisons and got
-   materially weaker under proper held-out scrutiny. Candidates not
-   yet tried: a stricter/different HTF timeframe (4h instead of 1h?),
-   requiring HTF confirmation AND a minimum trend strength (not just
-   sign), or accepting the strategy may only be reliably tradeable in
-   calm regimes and building actual regime DETECTION (pause trading
-   entirely, don't try to filter individual entries) rather than a
-   per-entry filter.
+9. ~~Find a filter that survives train/test within each window~~ --
+   TRIED 4h as a candidate, see following entry. **Also rejected.**
+   Both HTF timeframes now ruled out with proper rigor.
 10. A 4th historical window (95-125 days ago) would help -- but given
     #9's finding, more windows without fixing the underlying
     full-window-vs-test-split gap will just repeat the same trap.
-    Prioritize #9 first.
-11. Wider/finer exit-parameter grids only if #9 changes the picture
+11. Wider/finer exit-parameter grids only if #9/#10 change the picture
     enough to be worth revisiting.
+
+## 2026-08-23 (cont.) -- 4h confirmation also rejected; live bot reverted
+
+Extended the train/test check to also test 4h confirmation (slower,
+smoother trend signal, hypothesised to be less prone to 1h's apparent
+whipsaw fragility), train/test discipline built in from the start this
+time. All 3 windows, held-out test period only:
+
+| Window | No filter | 1h confirmation | 4h confirmation |
+|---|---|---|---|
+| Primary (good) | +4.137% | +4.531% | +6.533% (n=19, thin) |
+| Second (bad) | **-0.528%** (best) | -2.050% | -1.000% |
+| Third (bad) | **+1.352%** (best) | +0.335% | -0.821% |
+
+**Neither HTF filter holds up.** In both bad-regime windows' held-out
+test periods, "no filter" beats *both* 1h and 4h confirmation -- the
+filters make exactly the situation they were meant to protect against
+worse, not better. Only in the primary (current-regime) window do the
+filters look comparable-to-slightly-better, on a small sample.
+
+**Reverted the live bot to no HTF/regime gate at all**
+(`execute_paper_trades()` in scanner.py). Two different filters have
+now both looked convincing on full-window aggregates and failed under
+proper train/test scrutiny -- continuing to ship untested "fixes" isn't
+defensible. `check_htf_confirmation()` and `check_market_regime()` stay
+in the code for backtesting/research, just not called live.
+
+**Where this actually leaves things:** the well-validated core (signal
+engine with the momentum fix, ATR-based risk, volume-ranked symbols)
+remains the only thing that's genuinely held up under real train/test
+scrutiny throughout this whole project. Regime-robustness is a real,
+open, unsolved problem -- not something to claim progress on again
+without a result that survives the same level of checking applied
+here. Next attempt at a regime fix should be validated with train/test
+built in from the very first test, not retrofitted after a full-window
+result looks promising (that pattern has now failed twice).

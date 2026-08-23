@@ -358,7 +358,17 @@ def check_htf_confirmation(symbol):
 # ============================================================
 
 def execute_paper_trades(results):
-    """Send qualifying signals to the paper trader."""
+    """
+    Send qualifying signals to the paper trader.
+
+    No regime/HTF gate here -- both the volatility filter and 1h/4h
+    multi-timeframe confirmation were tried and rejected after proper
+    train/test scrutiny (OPTIMIZATION_LOG.md, 2026-08-23): both looked
+    good on full-window aggregates but made held-out test performance
+    WORSE in the bad-regime windows, not better. check_htf_confirmation
+    is kept above for backtesting/research use, just not called here.
+    Regime-robustness remains an open, unsolved problem.
+    """
 
     for trade in results:
 
@@ -367,15 +377,6 @@ def execute_paper_trades(results):
         confidence = trade["confidence"]
         price = trade["price"]
         atr = trade["atr"]
-
-        if decision == "BUY" and not check_htf_confirmation(symbol):
-
-            print(
-                f"\n{symbol}: BUY signal but 1h trend not "
-                f"confirmed -- entry skipped."
-            )
-
-            continue
 
         execute_paper_trade(
             symbol,
