@@ -45,10 +45,7 @@ def run():
                 symbol, days=30, end_days_ago=end_days_ago,
             )
 
-        split_ts = backtest.exchange.now_ms() - int(
-            (end_days_ago + backtest.BACKTEST_DAYS * optimize.TEST_FRACTION)
-            * 24 * 60 * 60 * 1000
-        )
+        split_ts = optimize.compute_split_ts(cache)
 
         for tag, kwargs in [
             ("No filter", {}),

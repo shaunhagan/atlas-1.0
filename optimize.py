@@ -66,6 +66,31 @@ def split_trades(trades, split_ts):
     return train, test
 
 
+def compute_split_ts(candle_cache, test_fraction=TEST_FRACTION):
+    """
+    Derive the train/test split boundary from the CACHED data's own
+    timestamp range, not live current time.
+
+    fetch_history()'s cache never expires, so computing split_ts from
+    exchange.now_ms() means the "test" bucket silently shrinks (and
+    which trades land in it drifts) every day that passes without a
+    re-fetch -- rerunning the exact same script on the exact same
+    cached data days apart can flip results entirely with zero code
+    change. This anchors the split to the data actually being tested,
+    so results are reproducible regardless of when the run happens.
+    """
+
+    last_ts = [candles[-1][0] for candles in candle_cache.values() if candles]
+    first_ts = [candles[0][0] for candles in candle_cache.values() if candles]
+
+    window_end_ts = max(last_ts)
+    window_start_ts = min(first_ts)
+
+    window_span_ms = window_end_ts - window_start_ts
+
+    return window_end_ts - int(window_span_ms * test_fraction)
+
+
 def sweep(label, param_name, grid, candle_cache, symbols, fixed_kwargs, split_ts):
     """Every decision here uses TRAIN trades only -- the held-out
     test period is never touched until the final confirmation."""
@@ -123,10 +148,6 @@ def run_optimization():
     all_symbols = backtest.exchange.get_markets()[:backtest.SYMBOL_LIMIT]
     sweep_symbols = all_symbols[:SWEEP_SYMBOL_LIMIT]
 
-    split_ts = backtest.exchange.now_ms() - int(
-        backtest.BACKTEST_DAYS * TEST_FRACTION * 24 * 60 * 60 * 1000
-    )
-
     print(f"Loading cached history for {len(sweep_symbols)} sweep symbols...")
     print(f"Train/test split: last {TEST_FRACTION*100:.0f}% of the {backtest.BACKTEST_DAYS}-day window held out.\n")
 
@@ -134,6 +155,8 @@ def run_optimization():
 
     for symbol in sweep_symbols:
         candle_cache[symbol] = backtest.fetch_history(symbol)
+
+    split_ts = compute_split_ts(candle_cache)
 
     fixed = {
         "atr_stop_multiplier": ATR_STOP_MULTIPLIER,
