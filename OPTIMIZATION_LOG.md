@@ -504,3 +504,52 @@ Worth remembering why it worked when the others didn't: it's a
 market-wide (BTC) volatility measure, not a per-symbol trend signal --
 possibly more stable/less noisy than per-symbol 1h/4h trend, which can
 flip on short-term whipsaws. Not fully understood why, just observed.
+
+## 2026-08-24 -- CRITICAL BUG: split_ts anchored to live time, not cached data; fixed and re-validated
+
+**Found while extending validation to a 4th window (95-125 days ago):**
+every train/test script (`optimize.py`, `regime_filter_traintest.py`,
+`htf_confirmation_traintest.py`) computed `split_ts` from
+`exchange.now_ms()` -- but `fetch_history()`'s cache never expires. As
+real time passes without a re-fetch, the "test" bucket (trades with
+`entry_ts >= split_ts`) silently shrinks and *which specific trades*
+land in it drifts, purely as a function of when the script happens to
+be re-run, not the data itself.
+
+**Proof this was real, not theoretical:** re-running the volatility
+filter validation on completely unchanged cached data produced a full
+sign reversal for the Third window's test expectancy: **+1.703% in the
+first run -> -1.707% in a later run**, zero code change, only real
+time passing in between. The "reversal" I reported as a finding
+earlier was itself a bug artifact, not a real result.
+
+**Fix:** added `optimize.compute_split_ts()`, which anchors the 75/25
+split to the cached data's own actual timestamp span (its min/max
+timestamps) instead of live time. Reproducible regardless of when the
+script runs. All three scripts updated to use it.
+
+**Re-validated the currently-live volatility filter with the fix**
+(same 4 windows, held-out test period):
+
+| Window | No filter | Volatility filter |
+|---|---|---|
+| Primary (good) | +4.278% | +4.986% |
+| Second (bad) | -0.777% | **+0.435%** (n=53 vs 27) |
+| Third (bad) | -0.246% | **+0.513%** (n=38 vs 31) |
+| Fourth (mixed, new) | -1.304% | -1.047% (improves, stays negative) |
+
+**Conclusion holds, now on solid ground.** This replicates the
+original Second/Third window findings (confirming those were real, the
+later "reversal" was the bug) and adds a genuinely new result: the
+filter helps but doesn't fully fix the Fourth window. 3 of 4 windows
+improve, 2 flip to profitable, none get worse. **No change to the live
+bot** -- this confirms the existing deployment was justified, it just
+needed to be re-checked on a bug-free measurement.
+
+**Lesson for all future backtesting work:** any train/test result
+computed before 2026-08-24 that reused previously-cached
+`backtest_data/*.csv` files across multiple script runs on different
+days should be treated with suspicion unless it's been re-verified
+with `compute_split_ts()`. Results from a single script execution
+(fetch + immediately test, no reuse gap) were not affected -- only
+results from re-running against already-cached data days later.
