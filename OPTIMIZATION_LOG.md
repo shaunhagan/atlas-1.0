@@ -417,15 +417,21 @@ in this filter should be "promising in current conditions," not
    TRIED 4h as a candidate, also rejected (both HTF timeframes ruled
    out). **Then found: the volatility filter itself, checked properly,
    PASSES.** See entry directly above. Re-deployed live 2026-08-23.
-10. A 4th historical window (95-125 days ago) -- now worth doing,
-    since there's a validated filter to stress-test further rather
-    than just repeating a search that keeps finding non-robust
-    results.
-11. Try to understand WHY the volatility filter (market-wide) works
-    where per-symbol HTF trend didn't -- would help judge whether
+10. ~~A 4th historical window~~ -- DONE, see 2026-08-24 entries above.
+    Also surfaced and fixed the critical split_ts bug in the process.
+    Both major conclusions (volatility filter works, HTF doesn't) now
+    confirmed on a reproducible, bug-fixed methodology across 4 windows.
+11. **Try to understand WHY the volatility filter (market-wide) works
+    where per-symbol HTF trend didn't** -- would help judge whether
     other market-wide (vs per-symbol) signals are worth trying next,
-    e.g. overall market breadth/correlation.
-12. Wider/finer exit-parameter grids only if #10/#11 change the
+    e.g. overall market breadth/correlation. Still open.
+12. **The Fourth window remains net negative even with the volatility
+    filter** (-1.047%, improved from -1.304% but not fixed) -- this
+    regime (BTC +3.59%, moderate volatility) isn't protected by the
+    current filter. Worth understanding what's different about it
+    before assuming the filter generalizes further than these 4
+    windows.
+13. Wider/finer exit-parameter grids only if #11/#12 change the
     picture enough to be worth revisiting.
 
 ## 2026-08-23 (cont.) -- 4h confirmation also rejected; live bot reverted
@@ -553,3 +559,14 @@ days should be treated with suspicion unless it's been re-verified
 with `compute_split_ts()`. Results from a single script execution
 (fetch + immediately test, no reuse gap) were not affected -- only
 results from re-running against already-cached data days later.
+
+**Re-checked the HTF confirmation rejection with the fix too --
+confirmed correct, not a bug artifact.** Second window: 1h confirmation
+still clearly worse than no filter (-1.888% vs -0.690%). Third window:
+mixed at best (1h somewhat better, 4h roughly the same). The decision
+to revert away from HTF confirmation back to the volatility filter
+stands validated. Both major conclusions from 2026-08-23 (volatility
+filter works, HTF confirmation doesn't) hold up under the bug-fixed,
+reproducible methodology -- the bug mattered for the exact numbers
+(especially Third window's volatility-filter result) but not for either
+final decision.
