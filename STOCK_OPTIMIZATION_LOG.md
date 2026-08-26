@@ -99,22 +99,51 @@ show a validated edge on stocks.
 
 Can't tell which without running the actual parameter sweep first.
 
+## 2026-08-27 -- Exit-parameter sweep: same overfitting trap as crypto's ATR=20, rejected
+
+Ran `stock_optimize.py` (90 days, 50 symbols, same staged
+coordinate-descent + train/test discipline as crypto's `optimize.py`).
+
+**Sweep picked ATR_STOP_MULTIPLIER=20, RISK_REWARD_RATIO=2.0,
+MIN_CONFIDENCE=65** -- train expectancy climbed to +1.914% as the grid
+tightened, with the exact same tell as crypto's rejected ATR=20 result:
+trade count collapsing as the multiplier increased (577 -> 122 trades).
+
+**Confirmation run exposed it immediately:**
+
+| Config | Full period | Test (held out) |
+|---|---|---|
+| Baseline (crypto-transplanted, ATR=10/RR=2.5/conf=70) | +0.237% | -1.021% |
+| "Winner" (ATR=20/RR=2.0/conf=65) | +1.273% | **-4.664% (n=15)** |
+
+**Rejected.** The winner looks dramatically better full-period and
+collapses to a much worse, catastrophic result on the tiny (15-trade)
+held-out test. Textbook overfit, same pattern as crypto's ATR=20
+rejection on 2026-08-18. Exit-parameter tuning alone does not rescue
+stocks -- the baseline's negative test expectancy stands unchanged.
+No config change to `stock_main.py`.
+
 ## What's next
 
-1. ~~Extend the backtest window~~ -- DONE, see entry above. Confirmed
+1. ~~Extend the backtest window~~ -- DONE (2026-08-26/27). Confirmed
    the negative result on a properly-sized sample, not a small-sample
    artifact.
-2. **Run a stock-specific exit-parameter sweep** (ATR multiplier,
-   risk:reward, confidence threshold) -- same coordinate-descent
-   approach as `optimize.py`, adapted for `stock_backtest.py`. This is
-   the fastest way to tell "needs stock-specific tuning" apart from
-   "this signal combo just doesn't work well on equities."
-3. **Do not deploy any stock-specific tuning live until it survives
+2. ~~Stock-specific exit-parameter sweep~~ -- DONE, see entry above.
+   **Rejected** -- same overfitting trap as crypto's ATR=20. Exit
+   tuning alone doesn't rescue stocks.
+3. **Signal component ablation** -- same approach as crypto's
+   momentum-component finding (`ablate.py`/`use_trend`/`use_rsi`/etc.
+   toggles already exist in `signals.py`, generic, not crypto-specific).
+   Test whether any single component (RSI, MACD, momentum, volume,
+   chop-gate) is actively unhelpful for equities specifically, same
+   train/test discipline throughout.
+4. **Do not deploy any stock-specific tuning live until it survives
    train/test on a properly-sized sample.** No config changes to
-   `stock_main.py`'s live settings from this entry.
-4. If the sweep doesn't find a working config either, move to signal
-   component ablation (same as crypto's momentum-component finding) --
-   possible some component is actively unhelpful for equities
-   specifically.
-5. Live stock paper trading continues regardless, accumulating its own
+   `stock_main.py`'s live settings so far.
+5. If ablation doesn't turn up a fix either, the honest conclusion
+   becomes: this signal combo (EMA/RSI/MACD) may just not have a
+   reliable edge on US equities, which are more efficiently priced
+   than crypto alts -- a real, valid outcome to land on, not a failure
+   to keep chasing indefinitely.
+6. Live stock paper trading continues regardless, accumulating its own
    real track record in parallel with backtesting.
