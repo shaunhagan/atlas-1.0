@@ -53,13 +53,21 @@ DATA_FOLDER.mkdir(exist_ok=True)
 # ============================================================
 
 def _cache_path(symbol, days=BACKTEST_DAYS, end_days_ago=0):
+    """
+    Cache filename always encodes `days` -- without it, two calls
+    with the same symbol/end_days_ago but different `days` (e.g. a
+    30-day vs 90-day window) would collide on the same file and
+    silently serve the wrong-length window. Found this the hard way
+    testing a 90-day stock fetch that silently returned 30-day
+    cached data (STOCK_OPTIMIZATION_LOG.md, 2026-08-26/27).
+    """
 
     safe_name = symbol.replace("/", "_")
 
     if end_days_ago:
         return DATA_FOLDER / f"{safe_name}_{days}d_end{end_days_ago}d.csv"
 
-    return DATA_FOLDER / f"{safe_name}.csv"
+    return DATA_FOLDER / f"{safe_name}_{days}d.csv"
 
 
 def fetch_history(symbol, days=BACKTEST_DAYS, end_days_ago=0):
