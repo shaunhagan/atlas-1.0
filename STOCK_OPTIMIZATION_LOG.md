@@ -60,17 +60,61 @@ crypto's 24/7, so a 30-day calendar window yields far fewer trades for
 the same symbol count (114 here vs crypto's 500+ in a comparable test).
 Splitting a small total into train/test leaves very few test trades.
 
+## 2026-08-26/27 (cont.) -- Fixed a cache bug, extended to 90 days: result confirmed negative, not just small-sample noise
+
+Along the way, found and fixed a real bug: `_cache_path()` in both
+`backtest.py` and `stock_backtest.py` didn't encode `days` in the
+cache filename for the default (`end_days_ago=0`) case -- a 90-day
+fetch request silently returned the previously-cached 30-day data.
+Confirmed concretely (90-day AAPL request returned exactly the 30-day
+candle count before the fix). Never bit crypto in practice since
+`BACKTEST_DAYS=30` was always used consistently there, but it was a
+live landmine. Fixed in both files; cache filenames now always include
+`days`.
+
+**Re-ran the train/test validation at 90 days** (302 train / 55 test
+trades, ~4x the previous test sample):
+
+| Split | Trades | Win Rate | Expectancy |
+|---|---|---|---|
+| Train | 302 | 32.5% | +0.466% |
+| **Test (held out)** | **55** | **-1.021%**, 25.5% WR |
+
+**Confirmed, not resolved by more data.** Train itself dropped
+substantially too (+2.029% at 30 days -> +0.466% at 90 days), and the
+held-out test stays clearly negative on a properly-sized sample. This
+rules out "the first result was just small-sample noise" -- reusing
+crypto's signal engine and risk parameters as-is genuinely does not
+show a validated edge on stocks.
+
+**Two honest possibilities, not yet distinguished:**
+1. The parameters (ATR multiplier, risk:reward, confidence threshold)
+   need stock-specific tuning, the same way crypto's did -- crypto's
+   numbers were never assumed optimal for stocks, just a reasonable
+   starting point.
+2. The underlying signal combo (EMA/RSI/MACD) may have even less edge
+   on US equities than on crypto alts -- large-cap stocks are far more
+   efficiently priced/arbitraged than crypto, a concern already flagged
+   on day one of this project as a risk for the crypto side too.
+
+Can't tell which without running the actual parameter sweep first.
+
 ## What's next
 
-1. **Extend the backtest window** (e.g. 90 days instead of 30) to get
-   a bigger, more statistically meaningful sample -- the direct fix for
-   the small-test-bucket problem, not a new experiment. Check Alpaca's
-   free-tier IEX historical depth supports it first.
-2. **Do not deploy any stock-specific tuning live until it survives
+1. ~~Extend the backtest window~~ -- DONE, see entry above. Confirmed
+   the negative result on a properly-sized sample, not a small-sample
+   artifact.
+2. **Run a stock-specific exit-parameter sweep** (ATR multiplier,
+   risk:reward, confidence threshold) -- same coordinate-descent
+   approach as `optimize.py`, adapted for `stock_backtest.py`. This is
+   the fastest way to tell "needs stock-specific tuning" apart from
+   "this signal combo just doesn't work well on equities."
+3. **Do not deploy any stock-specific tuning live until it survives
    train/test on a properly-sized sample.** No config changes to
    `stock_main.py`'s live settings from this entry.
-3. Once there's a big enough sample, repeat crypto's validation
-   sequence: exit-parameter sweep, signal component ablation, second
-   non-overlapping window -- in that order, same discipline.
-4. Live stock paper trading continues regardless, accumulating its own
+4. If the sweep doesn't find a working config either, move to signal
+   component ablation (same as crypto's momentum-component finding) --
+   possible some component is actively unhelpful for equities
+   specifically.
+5. Live stock paper trading continues regardless, accumulating its own
    real track record in parallel with backtesting.
