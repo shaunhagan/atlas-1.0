@@ -28,6 +28,35 @@ STOCK_SCAN_LIMIT = 50
 
 STOCK_CANDLE_LIMIT = 200
 
+STOCK_SCAN_INTERVAL = 30
+
+# Separate paper portfolio/capital from crypto -- same starting
+# balance for a fair side-by-side comparison, independently tracked.
+
+STOCK_STARTING_BALANCE = 10000.00
+
+# Roughly proportional to crypto's 30/150, given a 50-symbol universe.
+
+STOCK_MAX_OPEN_TRADES = 15
+
+STOCK_RISK_PER_TRADE = 0.01
+
+# Real stock 5m ATR%% (checked against live data, 2026-08-26) is
+# 0.05-0.51%% -- comparable in magnitude to crypto's, so reusing
+# crypto's multiplier as a starting point is reasonable, NOT because
+# it's assumed optimal for stocks. Needs the same kind of backtest
+# validation crypto went through before being trusted further.
+
+STOCK_ATR_STOP_MULTIPLIER = 10.0
+
+STOCK_RISK_REWARD_RATIO = 2.5
+
+# Alpaca stock trading is commission-free (unlike Binance's ~0.1%
+# taker fee that crypto's friction estimate is based on) -- this is
+# just a slippage buffer, not a fee approximation.
+
+STOCK_TRADING_FRICTION_PCT = 0.0003
+
 
 # ============================================================
 # SCANNER SETTINGS
