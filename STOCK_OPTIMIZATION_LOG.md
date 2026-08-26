@@ -123,27 +123,55 @@ rejection on 2026-08-18. Exit-parameter tuning alone does not rescue
 stocks -- the baseline's negative test expectancy stands unchanged.
 No config change to `stock_main.py`.
 
+## 2026-08-27 (cont.) -- Signal ablation: no rescue either; honest conclusion reached
+
+Ran `stock_ablate.py` (90 days, 50 symbols, same train/test discipline).
+
+| Removed | Test N | Test Exp | Verdict |
+|---|---|---|---|
+| trend | 0 | n/a | Structurally required (same as crypto) |
+| RSI | 0 | n/a | Structurally required -- confidence never reaches MIN_CONFIDENCE without it |
+| MACD | 0 | n/a | Structurally required, same reason |
+| momentum | 302/55 (identical to baseline) | -1.021% | Already off by default (crypto's finding) -- this row is a no-op by construction |
+| volume | 260/55 | **-0.906%** | Modest improvement, same test N as baseline (55, apples to apples), still negative |
+| chop-gate | 303/55 | -1.021% (identical) | **No effect at all** -- very different from crypto, where removing this caused a 12x trade explosion (2877 vs 234 trades). The `MIN_EMA_SPREAD_PCT`/`MIN_MACD_HIST_PCT` thresholds were calibrated against crypto's price/volatility scale and may simply rarely trigger on stocks' different profile. |
+
+**No rescue.** Best single change (dropping volume) still leaves test
+expectancy negative (-0.906%), just less bad. Structurally-required
+components can't be tested this way (need e.g. a MIN_CONFIDENCE drop
+to compensate, not attempted here).
+
+**Honest conclusion: three independent validation attempts (raw
+crypto-transplanted config, exit-parameter sweep, component ablation)
+have all failed to find a validated positive edge for this signal
+engine on stocks.** This is a legitimate, useful finding, not a
+failure of the process -- exactly what disciplined backtesting is
+for. The EMA/RSI/MACD combination may simply not have a reliable edge
+on large-cap US equities (far more efficiently priced/arbitraged than
+crypto alts, a concern flagged as a real risk back on this project's
+first day). **No config changes have been made to `stock_main.py`'s
+live settings at any point in this research trail.**
+
 ## What's next
 
-1. ~~Extend the backtest window~~ -- DONE (2026-08-26/27). Confirmed
-   the negative result on a properly-sized sample, not a small-sample
-   artifact.
-2. ~~Stock-specific exit-parameter sweep~~ -- DONE, see entry above.
-   **Rejected** -- same overfitting trap as crypto's ATR=20. Exit
-   tuning alone doesn't rescue stocks.
-3. **Signal component ablation** -- same approach as crypto's
-   momentum-component finding (`ablate.py`/`use_trend`/`use_rsi`/etc.
-   toggles already exist in `signals.py`, generic, not crypto-specific).
-   Test whether any single component (RSI, MACD, momentum, volume,
-   chop-gate) is actively unhelpful for equities specifically, same
-   train/test discipline throughout.
-4. **Do not deploy any stock-specific tuning live until it survives
-   train/test on a properly-sized sample.** No config changes to
-   `stock_main.py`'s live settings so far.
-5. If ablation doesn't turn up a fix either, the honest conclusion
-   becomes: this signal combo (EMA/RSI/MACD) may just not have a
-   reliable edge on US equities, which are more efficiently priced
-   than crypto alts -- a real, valid outcome to land on, not a failure
-   to keep chasing indefinitely.
-6. Live stock paper trading continues regardless, accumulating its own
-   real track record in parallel with backtesting.
+1. ~~Extend the backtest window~~ -- DONE (2026-08-26/27).
+2. ~~Stock-specific exit-parameter sweep~~ -- DONE (2026-08-27).
+   **Rejected.**
+3. ~~Signal component ablation~~ -- DONE, see entry above. **No
+   rescue found. Honest conclusion: no validated edge yet.**
+4. **Live stock paper trading continues as-is, purely observational
+   for now** -- worth watching whether live results (different
+   symbols/timing than the backtest window) tell a different story,
+   the same way crypto's live results eventually diverged positively
+   from an early rough patch.
+5. **Untested ideas if this is worth pursuing further later:** test
+   `use_momentum=True` specifically for stocks (crypto and stocks
+   could plausibly behave oppositely here, never actually tested since
+   it's off by default); a completely different indicator combination
+   rather than reusing crypto's; a larger/different symbol universe
+   (mega-cap only? higher volume filter?) than the current
+   volume-ranked top 50.
+6. **Not recommended:** more exit-parameter or ablation variations on
+   the current signal engine without a new hypothesis -- three
+   attempts have already come up empty; more of the same is unlikely
+   to change that.
