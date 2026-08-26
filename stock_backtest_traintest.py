@@ -25,22 +25,28 @@ import optimize
 
 VALIDATION_SYMBOL_LIMIT = stock_backtest.SYMBOL_LIMIT
 
+# 30 days gave too few trades for a meaningful held-out test bucket
+# (13 trades) -- stocks trade ~6.5h/weekday vs crypto's 24/7, so the
+# same calendar window yields far fewer bars/trades. 90 days gives a
+# bigger, more statistically meaningful sample.
+VALIDATION_DAYS = 90
+
 
 def run():
 
     symbols = stock_backtest.exchange.get_markets()[:VALIDATION_SYMBOL_LIMIT]
 
-    print(f"Loading cached history for {len(symbols)} symbols...")
+    print(f"Loading cached history for {len(symbols)} symbols ({VALIDATION_DAYS} days)...")
 
     cache = {}
 
     for symbol in symbols:
-        cache[symbol] = stock_backtest.fetch_history(symbol)
+        cache[symbol] = stock_backtest.fetch_history(symbol, days=VALIDATION_DAYS)
 
     split_ts = optimize.compute_split_ts(cache)
 
     trades = stock_backtest.run_backtest(
-        symbols=symbols, candle_cache=cache, verbose=False,
+        symbols=symbols, days=VALIDATION_DAYS, candle_cache=cache, verbose=False,
     )
 
     train, test = optimize.split_trades(trades, split_ts)

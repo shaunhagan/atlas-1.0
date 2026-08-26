@@ -6,4 +6,5 @@ backtest_data/
 stock_backtest_data/
 backtest_data_stock_initial_report.txt
 stock_backtest_data_traintest_report.txt
+stock_backtest_data_traintest_90d_report.txt
 .env
