@@ -1,28 +1,29 @@
 """
 =========================================
 ATLAS AI
-Signal Component Ablation
+Stock Signal Component Ablation
 =========================================
 
-The exit-parameter sweep (optimize.py) found the current live config
-already near-optimal in that space (see OPTIMIZATION_LOG.md,
-2026-08-18). This tests the other half of the problem: does each
-individual scoring component in signals.py actually contribute
-positive out-of-sample expectancy, or is one of them dead weight (or
-actively harmful)?
+The exit-parameter sweep (stock_optimize.py) rejected -- same
+overfitting trap as crypto's ATR=20 (STOCK_OPTIMIZATION_LOG.md,
+2026-08-27). This tests the other half: does each individual scoring
+component in signals.py actually contribute positive out-of-sample
+expectancy on stocks specifically, or is one of them dead weight (or
+actively harmful) the way momentum was for crypto?
 
-Same train/test discipline as optimize.py: every comparison is judged
-on the held-out test period, not the full period, to avoid the
-overfitting trap already caught once today.
+Same train/test discipline throughout, split anchored to the cached
+data's own span (not live time -- see optimize.compute_split_ts).
 """
 
 from tabulate import tabulate
 
-import backtest
+import stock_backtest
 import optimize
 
 
-ABLATION_SYMBOL_LIMIT = 30
+ABLATION_SYMBOL_LIMIT = stock_backtest.SYMBOL_LIMIT
+
+ABLATION_DAYS = 90
 
 COMPONENTS = [
     "use_trend",
@@ -36,17 +37,15 @@ COMPONENTS = [
 
 def run_ablation(symbol_limit=ABLATION_SYMBOL_LIMIT):
 
-    all_symbols = backtest.exchange.get_markets()[:symbol_limit]
+    all_symbols = stock_backtest.exchange.get_markets()[:symbol_limit]
 
-    print(f"Loading cached history for {len(all_symbols)} symbols...")
+    print(f"Loading cached history for {len(all_symbols)} symbols ({ABLATION_DAYS} days)...")
 
     candle_cache = {}
 
     for symbol in all_symbols:
-        candle_cache[symbol] = backtest.fetch_history(symbol)
+        candle_cache[symbol] = stock_backtest.fetch_history(symbol, days=ABLATION_DAYS)
 
-    # Anchored to the cached data's own span, not live time -- see
-    # optimize.compute_split_ts for why (OPTIMIZATION_LOG.md, 2026-08-23/24).
     split_ts = optimize.compute_split_ts(candle_cache)
 
     configs = [("ALL COMPONENTS (current live behaviour)", {})]
@@ -58,8 +57,9 @@ def run_ablation(symbol_limit=ABLATION_SYMBOL_LIMIT):
 
     for label, kwargs in configs:
 
-        trades = backtest.run_backtest(
+        trades = stock_backtest.run_backtest(
             symbols=all_symbols,
+            days=ABLATION_DAYS,
             candle_cache=candle_cache,
             verbose=False,
             **kwargs,
@@ -82,7 +82,7 @@ def run_ablation(symbol_limit=ABLATION_SYMBOL_LIMIT):
 
     print()
     print("=" * 100)
-    print("SIGNAL COMPONENT ABLATION")
+    print("STOCK SIGNAL COMPONENT ABLATION")
     print("=" * 100)
     print(tabulate(
         rows,
@@ -96,9 +96,9 @@ def run_ablation(symbol_limit=ABLATION_SYMBOL_LIMIT):
     print(
         "Compare each row's Test Exp against the baseline row's. A "
         "component whose removal IMPROVES test expectancy is a "
-        "candidate to drop or reweight -- but only trust it if the "
-        "test N is large enough to mean something (see the ATR=20 "
-        "rejection in OPTIMIZATION_LOG.md for what happens when it isn't)."
+        "candidate to drop -- but only trust it if the test N is "
+        "large enough to mean something (see the ATR=20/stock sweep "
+        "rejections for what happens when it isn't)."
     )
     print("=" * 100)
 
