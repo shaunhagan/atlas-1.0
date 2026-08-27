@@ -86,14 +86,25 @@ class StockExchange:
         return symbols[:STOCK_SCAN_LIMIT]
 
     def get_ticker(self, symbol):
-        """Return the latest trade price, shaped like exchange.get_ticker()."""
+        """Return the latest trade price, shaped like exchange.get_ticker().
+
+        Some tradable Alpaca assets (thinly/OTC-traded ADRs in
+        particular) have no recent IEX trade -- the response simply
+        omits the symbol rather than erroring. Return None so
+        analyse_market's existing "no price" skip handles it, instead
+        of a raw KeyError on every scan cycle."""
 
         request = StockLatestTradeRequest(
             symbol_or_symbols=symbol,
             feed=DataFeed.IEX,
         )
 
-        trade = self.data_client.get_stock_latest_trade(request)[symbol]
+        trades = self.data_client.get_stock_latest_trade(request)
+
+        trade = trades.get(symbol)
+
+        if trade is None:
+            return {"last": None}
 
         return {"last": float(trade.price)}
 

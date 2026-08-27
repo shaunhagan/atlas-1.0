@@ -95,13 +95,51 @@ Sample size note: 275 train / 101 test trades is comparable in order of
 magnitude to the crypto/stock validation runs that informed prior go/no-go
 calls in OPTIMIZATION_LOG.md and STOCK_OPTIMIZATION_LOG.md.
 
+## 2026-08-27 -- Signal component ablation (`meme_ablate.py`)
+
+Same split (`optimize.compute_split_ts`), 30-day hybrid-sourced window, all 6
+signal components tested one-removed-at-a-time against the current live
+baseline:
+
+| Config                | Train N | Train Exp | Test N | Test Exp |
+|------------------------|--------:|----------:|-------:|---------:|
+| ALL (current live)     |     275 |   +0.502% |    101 |  +1.384% |
+| WITHOUT use_trend       |       0 |    (n/a)  |      0 |   (n/a)  |
+| WITHOUT use_rsi         |     288 |   +0.359% |    104 |  +0.880% |
+| WITHOUT use_macd        |     234 |   +0.749% |     94 |  +0.858% |
+| WITHOUT use_momentum    |     275 |   +0.502% |    101 |  +1.384% |
+| WITHOUT use_volume      |     284 |   +0.624% |     97 |  +0.897% |
+| WITHOUT use_chop_gate   |     274 |   +0.502% |    103 |  +1.357% |
+
+Findings:
+- **use_trend is load-bearing**: removing it produces zero trades at
+  MEME_MIN_CONFIDENCE=55 -- the trend component alone appears to supply
+  enough of the confidence score for anything to clear the bar. Can't be
+  meaningfully ablated this way; not itself a finding of harm, just
+  confirms it's structurally necessary given the current threshold.
+- **RSI, MACD, volume all pull their weight**: each removal looks
+  neutral-to-better on TRAIN (MACD +0.749%, volume +0.624%, both above
+  baseline's +0.502%) but *worse* on TEST (+0.858%, +0.897%, both below
+  baseline's +1.384%) -- the classic train-up/test-down overfitting
+  shape this project has flagged before (HTF confirmation, crypto,
+  rejected twice for the same pattern). Kept as-is.
+- **use_momentum is a no-op here**: identical numbers with/without it,
+  because it already defaults to False live (the crypto ablation finding
+  that flipped this default applies globally, not per-asset-class) --
+  expected, not a new result.
+- **use_chop_gate has negligible effect on meme coins**: 274 vs 275
+  train trades, +1.357% vs +1.384% test expectancy -- essentially
+  unchanged. Plausible explanation: meme coins are rarely in the flat/
+  choppy regime this gate is designed to catch, so it seldom fires for
+  this asset class. Not harmful, left in for consistency with crypto/
+  stocks rather than removed on a marginal, likely-noise difference.
+
+**Conclusion: current live signal configuration is confirmed best-or-tied
+on every component, on the held-out test period. No config change made.**
+
 ## Next steps (not yet done)
 
 - A parameter sweep (`meme_optimize.py`, mirroring `optimize.py`/
   `stock_optimize.py`) over MEME_ATR_STOP_MULTIPLIER /
   MEME_RISK_REWARD_RATIO / MEME_MIN_CONFIDENCE has not been run yet -- current
   settings are validated as reasonable, not yet confirmed optimal.
-- Signal component ablation (`meme_ablate.py`, mirroring `ablate.py`) not yet
-  run -- unknown whether all signal components (trend/RSI/MACD/volume) pull
-  their weight for meme coins specifically, given crypto's own ablation found
-  momentum actively harmful there.
