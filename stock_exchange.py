@@ -27,7 +27,12 @@ from alpaca.trading.requests import GetAssetsRequest
 from alpaca.trading.enums import AssetClass, AssetStatus
 
 from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest, StockLatestTradeRequest
+from alpaca.data.historical.screener import ScreenerClient
+from alpaca.data.requests import (
+    StockBarsRequest,
+    StockLatestTradeRequest,
+    MostActivesRequest,
+)
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.enums import DataFeed
 
@@ -65,8 +70,28 @@ class StockExchange:
             ALPACA_SECRET_KEY,
         )
 
+        self.screener_client = ScreenerClient(
+            ALPACA_API_KEY,
+            ALPACA_SECRET_KEY,
+        )
+
     def get_markets(self):
-        """Return tradable, fractionable US equity symbols."""
+        """
+        Return the STOCK_SCAN_LIMIT most liquid tradable, fractionable
+        US equity symbols, ranked by recent trading volume -- same fix
+        already applied to exchange.py's get_markets() for crypto.
+        Previously sorted alphabetically, which meant the live scan
+        universe was arbitrary early-alphabet tickers (including
+        illiquid ones like AAGIY, a thinly-traded ADR with no IEX
+        quote -- see the get_ticker() fix above) rather than the
+        market's actual most-active names.
+
+        Alpaca's most-actives screener caps `top` at 100, and includes
+        symbols that may not be tradable/fractionable on this account
+        (e.g. leveraged/inverse ETPs), so it's used to RANK candidates
+        and the existing tradable+fractionable asset list still GATES
+        which of them are actually usable.
+        """
 
         request = GetAssetsRequest(
             asset_class=AssetClass.US_EQUITY,
@@ -75,15 +100,28 @@ class StockExchange:
 
         assets = self.trading_client.get_all_assets(request)
 
-        symbols = [
+        tradable = {
             asset.symbol
             for asset in assets
             if asset.tradable and asset.fractionable
+        }
+
+        most_active = self.screener_client.get_most_actives(
+            MostActivesRequest(top=100, by="volume")
+        )
+
+        ranked = [
+            item.symbol
+            for item in most_active.most_actives
+            if item.symbol in tradable
         ]
 
-        symbols.sort()
+        if len(ranked) < STOCK_SCAN_LIMIT:
 
-        return symbols[:STOCK_SCAN_LIMIT]
+            fallback = sorted(tradable - set(ranked))
+            ranked.extend(fallback[: STOCK_SCAN_LIMIT - len(ranked)])
+
+        return ranked[:STOCK_SCAN_LIMIT]
 
     def get_ticker(self, symbol):
         """Return the latest trade price, shaped like exchange.get_ticker().

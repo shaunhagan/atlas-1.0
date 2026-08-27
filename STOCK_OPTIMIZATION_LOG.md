@@ -195,3 +195,37 @@ indicator combo, different universe) are bigger undertakings than a
 quick toggle test -- parking stock strategy research here for now
 given four independent attempts have all come up empty; revisit with
 a genuinely new hypothesis rather than more of the same.
+
+## 2026-08-27 -- Major finding: the symbol universe was never actually volume-ranked
+
+While monitoring the live bot, found `stock_exchange.py`'s `get_ticker()`
+throwing an uncaught `KeyError` 225 times on a symbol called `AAGIY`
+(fixed separately). Looking at *why* AAGIY -- a thinly-traded ADR -- was
+even in the live scan universe exposed something bigger: `get_markets()`
+was sorting `symbols.sort()` **alphabetically** and taking the first 50,
+not ranking by volume. "What's next" item 5 above, written earlier in
+this log, incorrectly assumed "the current volume-ranked top 50" -- it
+never was. Crypto's `exchange.py` had this exact bug and was fixed for
+it early in the project (2026-08-1x); the fix was never mirrored here.
+
+**This means every stock validation result above -- the raw
+crypto-transplanted backtest, the exit-parameter sweep, the ablation,
+and the momentum test -- was run against an arbitrary, early-alphabet
+symbol set** (AAGIY, AAL, AABB-style names), not the liquid mega-caps
+("current volume-ranked top 50") the analysis assumed. All four "no
+validated edge" conclusions above may be an artifact of the universe,
+not the signal engine.
+
+**Fixed**: `get_markets()` now ranks by Alpaca's most-actives screener
+(`ScreenerClient.get_most_actives`, by volume, capped at the API's
+top=100 limit) and filters that ranked list down to tradable+
+fractionable symbols, falling back to fill any remaining slots
+alphabetically only if the ranked list comes up short. New top-50
+sample: NVDA, INTC, AMZN, MSTR, PLTR, SOFI, BAC, F, SPY, CRM, and
+other genuinely liquid, widely-traded names -- a completely different
+universe from before.
+
+**This invalidates the "no edge" conclusion above as untested-on-the-
+right-data, not confirmed-negative.** Re-running the full validation
+sequence (backtest -> train/test -> sweep -> ablation) against the
+corrected universe is the obvious next step, in progress below.
