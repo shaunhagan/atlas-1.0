@@ -250,4 +250,8 @@ if __name__ == "__main__":
             "in .env -- login will always fail until they are."
         )
 
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    # 0.0.0.0 so it's reachable from other devices on the Tailscale
+    # network (and the local LAN) -- still login-gated either way,
+    # not exposed to the wider internet since nothing forwards this
+    # port publicly.
+    app.run(host="0.0.0.0", port=5000, debug=False)
