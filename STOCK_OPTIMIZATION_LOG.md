@@ -175,3 +175,23 @@ live settings at any point in this research trail.**
    the current signal engine without a new hypothesis -- three
    attempts have already come up empty; more of the same is unlikely
    to change that.
+
+## 2026-08-27 -- Momentum-enabled tested directly: also worse, not better
+
+Tested `use_momentum=True` explicitly for stocks (previously only
+ever tested implicitly via the ablation's default-off baseline).
+Comparable sample sizes (292/302 train, 53/55 test):
+
+| Config | Test N | Test Expectancy |
+|---|---|---|
+| Momentum OFF (current default) | 55 | -1.021% |
+| Momentum ON | 53 | **-1.583%** (worse) |
+
+**Confirms the current default is correct for stocks too** -- momentum
+doesn't help either asset class, not a case of crypto and stocks
+behaving oppositely as hypothesized. Not a rescue, but closes off one
+of the untested ideas cleanly. Remaining untested ideas (different
+indicator combo, different universe) are bigger undertakings than a
+quick toggle test -- parking stock strategy research here for now
+given four independent attempts have all come up empty; revisit with
+a genuinely new hypothesis rather than more of the same.
