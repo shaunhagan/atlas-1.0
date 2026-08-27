@@ -19,6 +19,65 @@ SCAN_INTERVAL = 30
 
 
 # ============================================================
+# MEME COIN SETTINGS (high-risk tier, Kraken CEX pairs)
+# ============================================================
+
+# Deliberately more aggressive than the "safe" crypto book: bigger
+# risk per trade, wider stops (meme coins are extremely volatile),
+# lower confidence bar, no regime protection beyond a much higher
+# daily-loss threshold. These are a reasoned starting point reflecting
+# "intentionally higher risk tolerance", NOT backtested-optimal the
+# way the safe tier's numbers are -- unlike everything else in this
+# project, this tier is meant to be the unvalidated, fast/aggressive
+# one by design.
+
+# Exchange choice checked carefully, not just for volume: Gate.io had
+# the broadest meme coin coverage but explicitly excludes UK residents
+# in its own User Agreement and has an undisclosed-alleged-hack
+# reputation concern; KuCoin is on the UK FCA's warning list. Kraken
+# is genuinely FCA-registered (Payward Ltd, multiple registrations),
+# has never been hacked since founding in 2011, and still had the best
+# meme coin coverage (22/36 in a sample check) among the properly
+# UK-legitimate options (vs OKX 18/36, Bitget 20/36, Coinbase 15/36).
+
+# Candidate list, not a fixed universe -- meme_exchange.get_markets()
+# checks which of these are actually active on Kraken right now and
+# ranks by 24h volume, same pattern as exchange.py's volume ranking.
+
+# Base symbols only, not full pairs -- Kraken mostly quotes these
+# against USD, not USDT (only a handful have both), so
+# meme_exchange.get_markets() tries {base}/USD first, falling back to
+# {base}/USDT, and uses whichever actually exists for each coin.
+
+MEME_SYMBOL_CANDIDATES = [
+    "DOGE", "SHIB", "PEPE", "WIF", "BONK", "FLOKI", "MEME",
+    "MUBARAK", "TURBO", "NEIRO", "PNUT", "ACT", "POPCAT",
+    "MOODENG", "GOAT", "MEW", "PONKE", "TRUMP", "SPX",
+    "FARTCOIN", "PENGU", "GIGA",
+]
+
+MEME_SCAN_LIMIT = 25
+
+MEME_STARTING_BALANCE = 10000.00
+
+MEME_MAX_OPEN_TRADES = 10
+
+MEME_RISK_PER_TRADE = 0.03
+
+MEME_ATR_STOP_MULTIPLIER = 6.0
+
+MEME_RISK_REWARD_RATIO = 3.5
+
+MEME_MIN_CONFIDENCE = 55
+
+MEME_TRADING_FRICTION_PCT = 0.0015
+
+MEME_SCAN_INTERVAL = 30
+
+MEME_DAILY_LOSS_LIMIT_PCT = 20.0
+
+
+# ============================================================
 # STOCK SETTINGS (Alpaca)
 # ============================================================
 

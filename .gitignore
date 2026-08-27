@@ -9,4 +9,6 @@ stock_backtest_data_traintest_report.txt
 stock_backtest_data_traintest_90d_report.txt
 stock_optimize_report.txt
 stock_ablate_report.txt
+stock_momentum_test_report.txt
+dashboard_test.log
 .env
