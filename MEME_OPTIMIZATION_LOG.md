@@ -174,10 +174,42 @@ now been through the same validation sequence as crypto and stocks
 (backtest -> train/test -> parameter sweep -> ablation) and held up at
 every stage without needing a single change.
 
+## 2026-08-27 -- Regime filter test on meme coins (`meme_regime_test.py`) -- REJECTED
+
+meme_scanner.py's execute_paper_trades() was launched with no regime/HTF
+gate, deliberately, as the aggressive tier -- but that was a reasonable
+default, never actually tested. Crypto's BTC-volatility regime filter is
+validated and live there (OPTIMIZATION_LOG.md, 2026-08-23); worth checking
+whether the same market-wide risk-off gate helps or hurts meme coins
+specifically, since meme coins are typically more sentiment-driven than
+large caps and might behave oppositely (pumping precisely during
+high-volatility/high-attention windows rather than calm ones).
+
+Same BTC volatility filter (`regime_filter_test.build_regime_filters`,
+<0.10% realised vol, BTC-sourced via Binance) and volatility+trend variant
+applied as a gate on meme coin entries, same 30-day hybrid window/split:
+
+| Config                    | Train N | Train Exp | Test N | Test Exp |
+|----------------------------|--------:|----------:|-------:|---------:|
+| No filter (current live)   |     275 |   +0.502% |    101 |  +1.384% |
+| Volatility only             |     259 |   +0.072% |     14 |  -3.023% |
+| Volatility + trend           |     252 |   +0.058% |     14 |  -3.023% |
+
+Unlike the parameter sweep rejection above, this isn't an overfitting
+artifact -- expectancy degrades on TRAIN too (+0.502% -> +0.072%), not just
+test, so it's not "looks good in-sample, fails out-of-sample," it's
+"actively worse throughout." The filter also collapses test trade count
+from 101 to 14 (BTC was apparently in its "high volatility" state for most
+of the held-out window, and that's exactly when meme coins found their
+opportunities). Confirms the hypothesis: gating meme coin entries on
+crypto-market calm is the wrong shape of filter for this asset class.
+
+**Rejected. Confirms the original design choice (no regime/HTF gate on the
+meme tier) was correct, not just untested.**
+
 ## Next steps (not yet done)
 
-None outstanding from the original validation checklist. Future work would
-be genuinely new ideas (e.g. testing the regime filter or an HTF-style
-gate specifically on meme coins, given crypto's and stocks' results for
-those don't necessarily transfer to this asset class) rather than re-running
-the same checks.
+None outstanding. The meme tier has now been through backtest, train/test,
+ablation, parameter sweep, and a regime-filter transfer check -- every
+stage confirmed the original hand-picked settings and design (aggressive,
+no regime gate) rather than finding something to change.
