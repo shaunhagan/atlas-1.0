@@ -123,6 +123,21 @@ TRADING_FRICTION_PCT = 0.0015
 
 
 # ============================================================
+# DAILY LOSS CIRCUIT BREAKER
+# ============================================================
+
+# If a book's equity drawdown from its own start-of-day baseline
+# exceeds this, new entries pause for the rest of the day -- existing
+# positions are still managed (stop-loss/take-profit) normally, never
+# gated. Applies independently to crypto and stocks (each tracks its
+# own baseline). Crypto has already seen an 11.4% max drawdown with
+# nothing in place to stop a genuinely bad stretch from going further;
+# 5% is a starting estimate, not backtested-optimal.
+
+DAILY_LOSS_LIMIT_PCT = 5.0
+
+
+# ============================================================
 # MARKET REGIME FILTER (live)
 # ============================================================
 

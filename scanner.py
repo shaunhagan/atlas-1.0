@@ -13,6 +13,7 @@ from config import (
     HTF_CANDLE_LIMIT,
     REGIME_SYMBOL,
     REGIME_VOLATILITY_THRESHOLD_PCT,
+    DAILY_LOSS_LIMIT_PCT,
 )
 
 from exchange import exchange
@@ -21,6 +22,7 @@ from signals import SignalEngine
 
 import portfolio
 from logger import log_equity
+from risk_guard import check_daily_loss_limit
 
 from paper_trader import (
     execute as execute_paper_trade,
@@ -399,7 +401,8 @@ def execute_paper_trades(results):
     Gates new BUY entries on the volatility regime filter -- the one
     regime-protection approach that survived proper train/test
     validation (OPTIMIZATION_LOG.md, 2026-08-23; two HTF confirmation
-    variants were tried and rejected first). Never gates exits.
+    variants were tried and rejected first) -- and on the daily loss
+    circuit breaker. Neither ever gates exits.
     """
 
     regime_ok = check_market_regime()
@@ -411,6 +414,17 @@ def execute_paper_trades(results):
             f"still managed normally."
         )
 
+    daily_ok = check_daily_loss_limit(
+        portfolio, "crypto", DAILY_LOSS_LIMIT_PCT
+    )
+
+    if not daily_ok:
+        print(
+            f"\nDaily loss limit reached ({DAILY_LOSS_LIMIT_PCT}%) -- "
+            f"new entries paused for the rest of the day, existing "
+            f"positions still managed normally."
+        )
+
     for trade in results:
 
         symbol = trade["symbol"]
@@ -419,7 +433,7 @@ def execute_paper_trades(results):
         price = trade["price"]
         atr = trade["atr"]
 
-        if decision == "BUY" and not regime_ok:
+        if decision == "BUY" and (not regime_ok or not daily_ok):
             continue
 
         execute_paper_trade(

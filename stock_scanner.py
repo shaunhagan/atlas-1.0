@@ -18,6 +18,7 @@ from config import (
     STOCK_SCAN_INTERVAL,
     MIN_CONFIDENCE,
     SHOW_TOP,
+    DAILY_LOSS_LIMIT_PCT,
 )
 
 from stock_exchange import exchange
@@ -26,6 +27,7 @@ from signals import SignalEngine
 
 import stock_portfolio as portfolio
 from stock_logger import log_equity
+from risk_guard import check_daily_loss_limit
 
 from stock_paper_trader import (
     execute as execute_paper_trade,
@@ -378,8 +380,20 @@ def execute_paper_trades(results):
     stocks at all. Starting with the plain signal engine; a
     stock-specific regime filter (if warranted) should go through the
     same train/test validation crypto's did before being trusted,
-    not be assumed to transfer.
+    not be assumed to transfer. The daily loss circuit breaker is
+    asset-agnostic though, so it applies here too -- never gates exits.
     """
+
+    daily_ok = check_daily_loss_limit(
+        portfolio, "stocks", DAILY_LOSS_LIMIT_PCT
+    )
+
+    if not daily_ok:
+        print(
+            f"\nDaily loss limit reached ({DAILY_LOSS_LIMIT_PCT}%) -- "
+            f"new entries paused for the rest of the day, existing "
+            f"positions still managed normally."
+        )
 
     for trade in results:
 
@@ -388,6 +402,9 @@ def execute_paper_trades(results):
         confidence = trade["confidence"]
         price = trade["price"]
         atr = trade["atr"]
+
+        if decision == "BUY" and not daily_ok:
+            continue
 
         execute_paper_trade(
             symbol,
