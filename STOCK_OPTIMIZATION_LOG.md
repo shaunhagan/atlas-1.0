@@ -229,3 +229,64 @@ universe from before.
 right-data, not confirmed-negative.** Re-running the full validation
 sequence (backtest -> train/test -> sweep -> ablation) against the
 corrected universe is the obvious next step, in progress below.
+
+## 2026-08-27 (cont.) -- Regime filter test, but caveat: ran on the OLD universe
+
+`stock_regime_test.py` (SPY-based analogue of crypto's BTC volatility
+filter) had already started running in the background before the
+`get_markets()` fix above landed -- Python doesn't hot-reload a running
+process's imports, so it completed against the old alphabetical
+universe. Trade counts (302 train / 55 test) exactly match the earlier
+momentum-test entry, confirming this. Recording for completeness, not
+as a trustworthy result:
+
+| Config | Train N | Train Exp | Test N | Test Exp |
+|---|---:|---:|---:|---:|
+| No filter | 302 | +0.466% | 55 | -1.021% |
+| Volatility only | 212 | -0.374% | 77 | -0.593% |
+| Volatility + trend | 186 | -0.310% | 72 | -1.015% |
+
+Directionally the same story as no-filter (all still negative), so the
+regime filter doesn't look like a rescue either way -- but this needs
+re-running on the corrected universe before trusting it. Queued.
+
+## 2026-08-27 (cont.) -- Re-validated on the corrected universe: conclusion holds, more cleanly
+
+New universe (post `get_markets()` fix): NVDA, INTC, AMZN, MSTR, PLTR,
+SOFI, BAC, F, SPY, CRM, TQQQ/SQQQ, and other genuinely liquid,
+high-volume names -- nothing like the old alphabet-soup set.
+
+**30-day full-window looked promising again** (`stock_traintest`
+smoke check): 157 trades, 38.9% win rate, +1.198% expectancy. Same
+shape as the very first (flawed-universe) result on day one of stock
+research -- a reminder not to trust a 30-day full-window number here
+regardless of which universe it's testing, per the sample-size finding
+from 2026-08-26/27.
+
+**90-day backtest + train/test (`stock_traintest.py`), the number that
+actually matters:**
+
+| Metric | Full period | Train | Test (held out) |
+|---|---:|---:|---:|
+| Trades | 544 | 465 | 79 |
+| Win Rate | 26.7% | 27.1% | 24.1% |
+| Expectancy/Trade | **-0.567%** | **-0.521%** | **-0.840%** |
+
+**Conclusion holds, and more cleanly than before.** Negative on all
+three cuts (full/train/test) rather than a train-up/test-down
+overfitting shape -- this isn't a sample-quality artifact, it's a
+consistent, honest negative. The universe-selection bug was real and
+worth fixing regardless (trading actual liquid names has better real-
+world execution characteristics and stops the AAGIY-style API errors
+entirely on its own merits), but it does **not** rescue the earlier
+finding: **the EMA/RSI/MACD signal engine still shows no validated
+edge on US equities**, now confirmed on both a flawed and a corrected
+universe. This closes off "maybe it was just the wrong symbols" as a
+live hypothesis.
+
+**Updated bottom line: five independent validation attempts (raw
+config, exit-param sweep, ablation, momentum toggle, and now a
+corrected symbol universe) have all failed to find a validated
+edge for this signal engine on stocks.** Live stock paper trading
+continues as-is, observational only -- same status as before, just on
+firmer footing now that the universe question is closed.
