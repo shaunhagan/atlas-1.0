@@ -137,9 +137,47 @@ Findings:
 **Conclusion: current live signal configuration is confirmed best-or-tied
 on every component, on the held-out test period. No config change made.**
 
+## 2026-08-27 -- Parameter sweep (`meme_optimize.py`) -- REJECTED
+
+Staged coordinate-descent sweep over MEME_ATR_STOP_MULTIPLIER (3-10),
+MEME_RISK_REWARD_RATIO (2-4.5), MEME_MIN_CONFIDENCE (50-70), train period
+only, same 30-day hybrid-sourced window/split as the ablation above.
+
+Every grid walked monotonically toward its extreme: wider stop → higher
+train expectancy but collapsing trade count (860 trades at ATR=3, only 90
+at ATR=10); higher R:R → higher train expectancy, same shrinking-N pattern
+(126 trades at R:R=2, 83 at R:R=4.5); lower confidence → marginally higher
+train expectancy. Winning combination: ATR=10, R:R=4.5, MIN_CONFIDENCE=50,
+train expectancy +3.909%.
+
+Confirmation against the held-out TEST period rejects it outright:
+
+| Config                          | Trades | Win Rate | Expectancy/Trade |
+|-----------------------------------|-------:|---------:|------------------:|
+| Baseline - full period             |    376 |    27.1% |            +0.739% |
+| Baseline - TEST (held out)         |    101 |    32.7% |            +1.384% |
+| Winner - full period                |    120 |    30.0% |            +2.820% |
+| Winner - TEST (held out)            |     24 |    12.5% |            -1.534% |
+
+This is the same overfitting shape already documented and rejected for
+crypto's ATR_STOP_MULTIPLIER=20 sweep result and HTF confirmation (twice):
+looks great in-sample, sample size shrinks as the grid pushes toward its
+extreme, and the "improvement" is noise concentrated in a handful of
+outsized winning trades rather than a real edge -- 24 test trades is far
+too few to trust (below MIN_TRADES_FOR_SIGNIFICANCE=20 in spirit even
+though it technically clears the bar).
+
+**Rejected. Live config unchanged: MEME_ATR_STOP_MULTIPLIER=6.0,
+MEME_RISK_REWARD_RATIO=3.5, MEME_MIN_CONFIDENCE=55.** Combined with the
+ablation result above, the meme tier's original hand-picked settings have
+now been through the same validation sequence as crypto and stocks
+(backtest -> train/test -> parameter sweep -> ablation) and held up at
+every stage without needing a single change.
+
 ## Next steps (not yet done)
 
-- A parameter sweep (`meme_optimize.py`, mirroring `optimize.py`/
-  `stock_optimize.py`) over MEME_ATR_STOP_MULTIPLIER /
-  MEME_RISK_REWARD_RATIO / MEME_MIN_CONFIDENCE has not been run yet -- current
-  settings are validated as reasonable, not yet confirmed optimal.
+None outstanding from the original validation checklist. Future work would
+be genuinely new ideas (e.g. testing the regime filter or an HTF-style
+gate specifically on meme coins, given crypto's and stocks' results for
+those don't necessarily transfer to this asset class) rather than re-running
+the same checks.
