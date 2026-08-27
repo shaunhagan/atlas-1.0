@@ -10,11 +10,12 @@ files report.py/stock_report.py already read -- no separate data
 layer, no risk of showing something different from what those CLI
 reports say.
 
-Structure is a menu: each trading approach is its own independently
-tracked "book" (crypto, stocks, and eventually an AI/news-driven
-section once that's built) -- never blended together, so a reader can
-judge each on its own merits, matching how the underlying systems are
-actually kept separate.
+Structure is a risk-tiered menu: each trading approach is its own
+independently tracked "book" -- Safe (crypto + stocks, the validated,
+disciplined tier), Medium (AI/news-driven, placeholder pending an LLM
+API key decision), and High (meme coins, deliberately aggressive by
+design). Never blended together, so a reader can judge each on its own
+merits, matching how the underlying systems are actually kept separate.
 """
 
 import os
@@ -36,6 +37,9 @@ import report
 
 import stock_portfolio
 import stock_report
+
+import meme_portfolio
+import meme_report
 
 
 load_dotenv()
@@ -206,11 +210,13 @@ def home():
 
     crypto = _book_summary(portfolio, report)
     stocks = _book_summary(stock_portfolio, stock_report)
+    meme = _book_summary(meme_portfolio, meme_report)
 
     return render_template(
         "dashboard.html",
         crypto=crypto,
         stocks=stocks,
+        meme=meme,
     )
 
 
@@ -226,6 +232,13 @@ def api_crypto():
 def api_stocks():
 
     return jsonify(_book_summary(stock_portfolio, stock_report))
+
+
+@app.route("/api/meme")
+@login_required
+def api_meme():
+
+    return jsonify(_book_summary(meme_portfolio, meme_report))
 
 
 if __name__ == "__main__":

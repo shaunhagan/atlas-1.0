@@ -162,19 +162,47 @@
         color: var(--red);
         font-size: 13px;
     }
+    .tier {
+        margin-bottom: 32px;
+    }
+    .tier-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+    .tier-header h3 {
+        margin: 0;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        font-weight: 600;
+    }
+    .tier-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+    .tier-safe .tier-dot { background: var(--green); }
+    .tier-medium .tier-dot { background: var(--amber); }
+    .tier-high .tier-dot { background: var(--red); }
 </style>
 </head>
 <body>
 <header>
     <div>
         <h1>Atlas AI</h1>
-        <div class="sub">Trading books overview</div>
+        <div class="sub">Trading books overview — risk-tiered, fully independent</div>
     </div>
     <a href="{{ url_for('logout') }}">Log out</a>
 </header>
 
 <main>
-    <div class="books">
+
+    <div class="tier tier-safe">
+        <div class="tier-header"><span class="tier-dot"></span><h3>Safe — validated, disciplined signal engine</h3></div>
+        <div class="books">
 
         {% for label, book, color in [("Crypto", crypto, "#4fd1c5"), ("Stocks", stocks, "#818cf8")] %}
         <div class="book">
@@ -304,15 +332,156 @@
             {% endif %}
         </div>
         {% endfor %}
+        </div>
+    </div>
 
+    <div class="tier tier-medium">
+        <div class="tier-header"><span class="tier-dot"></span><h3>Medium Risk — AI / news-driven (not yet active)</h3></div>
+        <div class="books">
         <div class="book placeholder">
             <div>
                 <div style="font-size:15px; color:var(--text); margin-bottom:6px;">AI / News Section</div>
-                <div style="font-size:13px;">Coming soon — an experimental, LLM/news-driven book, tracked entirely independently of the two above.</div>
+                <div style="font-size:13px;">Coming soon — an experimental, LLM/news-driven book, tracked entirely independently of the other tiers. Pending an LLM API key decision.</div>
             </div>
         </div>
-
+        </div>
     </div>
+
+    <div class="tier tier-high">
+        <div class="tier-header"><span class="tier-dot"></span><h3>High Risk — meme coins, deliberately aggressive</h3></div>
+        <div class="books">
+
+        {% for label, book, color in [("Meme Coins", meme, "#fb923c")] %}
+        <div class="book">
+            <div class="book-title">
+                <h2>{{ label }}</h2>
+                <span class="badge live">● running</span>
+            </div>
+
+            {% if book.ok %}
+
+            <div class="stat-grid">
+                <div class="stat">
+                    <div class="label">Total Equity</div>
+                    <div class="value">${{ "%.2f"|format(book.total_equity) }}</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Total Return</div>
+                    <div class="value {{ 'pos' if book.total_return_pct >= 0 else 'neg' }}">
+                        {{ "%+.2f"|format(book.total_return_pct) }}%
+                    </div>
+                </div>
+                <div class="stat">
+                    <div class="label">Max Drawdown</div>
+                    <div class="value">{{ "%.2f"|format(book.max_drawdown) }}%</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Win Rate</div>
+                    <div class="value">
+                        {{ "%.1f"|format(book.win_rate) }}%
+                        <span style="color:var(--muted); font-weight:400; font-size:11px;">
+                            ({{ book.wins }}W/{{ book.losses }}L)
+                        </span>
+                    </div>
+                </div>
+                <div class="stat">
+                    <div class="label">Realised P&amp;L</div>
+                    <div class="value {{ 'pos' if book.realised_pnl >= 0 else 'neg' }}">
+                        {{ "%+.2f"|format(book.realised_pnl) }}
+                    </div>
+                </div>
+                <div class="stat">
+                    <div class="label">Open Positions</div>
+                    <div class="value">{{ book.open_positions|length }}</div>
+                </div>
+            </div>
+
+            <canvas id="chart-{{ label }}"></canvas>
+
+            <div class="section-label">Open Positions</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Symbol</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for pos in book.open_positions %}
+                        <tr>
+                            <td>{{ pos.symbol }}</td>
+                            <td>{{ "%.8f"|format(pos.entry_price) }}</td>
+                            <td>{{ "%.4f"|format(pos.quantity) }}</td>
+                            <td>{{ "%.8f"|format(pos.stop_loss) if pos.stop_loss else "—" }}</td>
+                            <td>{{ "%.8f"|format(pos.take_profit) if pos.take_profit else "—" }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" style="color:var(--muted);">No open positions</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section-label">Recent Trades</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Time</th><th>Symbol</th><th>Decision</th><th>Price</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for trade in book.recent_trades %}
+                        <tr>
+                            <td>{{ trade.Date }} {{ trade.Time }}</td>
+                            <td>{{ trade.Symbol }}</td>
+                            <td>{{ trade.Decision }}</td>
+                            <td>{{ trade.Price }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" style="color:var(--muted);">No trades yet</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <script>
+                (function() {
+                    const raw = {{ book.equity_curve|tojson }};
+                    const ctx = document.getElementById("chart-{{ label }}");
+                    new Chart(ctx, {
+                        type: "line",
+                        data: {
+                            labels: raw.map(p => p.label),
+                            datasets: [{
+                                data: raw.map(p => p.equity),
+                                borderColor: "{{ color }}",
+                                backgroundColor: "{{ color }}22",
+                                fill: true,
+                                pointRadius: 0,
+                                borderWidth: 2,
+                                tension: 0.15,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { display: false },
+                                y: {
+                                    ticks: { color: "#8a99a8", font: { size: 10 } },
+                                    grid: { color: "#232d38" },
+                                }
+                            }
+                        }
+                    });
+                })();
+            </script>
+
+            {% else %}
+            <div class="error-box">Could not load data: {{ book.error }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+
 </main>
 </body>
 </html>
