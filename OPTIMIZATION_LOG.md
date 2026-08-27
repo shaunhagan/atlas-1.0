@@ -570,3 +570,37 @@ filter works, HTF confirmation doesn't) hold up under the bug-fixed,
 reproducible methodology -- the bug mattered for the exact numbers
 (especially Third window's volatility-filter result) but not for either
 final decision.
+
+## 2026-08-27 -- Why the market-wide (BTC) filter beats per-symbol HTF: checked correlation
+
+Checked correlation between BTC's returns and 14 other scanned symbols
+(30-day window, 5m returns):
+
+| Symbol | Correlation with BTC |
+|---|---|
+| ETH | 0.810 |
+| SOL | 0.725 |
+| BNB | 0.707 |
+| DOGE | 0.664 |
+| XRP | 0.604 |
+| ZEC | 0.506 |
+| (stablecoins: USDC/USD1/RLUSD) | 0.03-0.08 |
+
+Major/liquid alts show real, meaningful co-movement with BTC (0.6-0.81);
+the near-zero correlations are exactly the stablecoins, which
+mechanically shouldn't correlate at all -- sanity-confirms the
+methodology rather than being a surprise.
+
+**This explains the earlier finding.** Most tradeable crypto assets
+move together during broad market stress (the well-known "risk-on/
+risk-off" behavior), so BTC's own volatility is a genuine proxy for
+"is the whole market stressed right now" -- a real, general signal.
+Each symbol's own 1h/4h trend, by contrast, is noisier and more
+idiosyncratic (subject to that specific token's own news/liquidity
+events), which is a plausible reason it doesn't generalize as a
+regime filter the way the market-wide signal does.
+
+**Implication for future regime-signal research:** market-wide
+proxies (BTC volatility, or potentially broader measures like average
+correlation/breadth across the scanned universe) are a more promising
+direction than per-symbol signals for this specific problem.
