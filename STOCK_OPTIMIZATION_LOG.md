@@ -438,3 +438,63 @@ ADX threshold.
 **Still not deploying to `stock_main.py`.** Mean-reversion remains
 better-evidenced than the trend engine but not yet a validated,
 regime-gated edge.
+
+## 2026-08-29 (cont.) -- SPY volatility gate also rejected; symbol-level diagnostic instead
+
+Tried the other standard regime candidate: SPY realised volatility
+(`stock_meanrev_spy_regime_test.py`, reusing the same
+`build_regime_filters()` already validated for crypto's live BTC
+filter). Also rejected -- makes window 1 *worse* (train -0.482% ->
+-0.838% -> -1.386% as the gate tightens) and slightly erodes window
+2 too (train +1.601% -> +1.463%/+1.546%). Neither per-symbol trend
+strength nor market-wide volatility explains the window discrepancy.
+
+**Switched from guessing regime filters to a symbol-level diagnostic.**
+Broke down each window's trades by symbol. Found a striking pattern:
+several of the *same* symbols flip from best-performer to
+worst-performer (or vice versa) between windows --
+
+| Symbol | Window 1 | Window 2 |
+|---|---:|---:|
+| SOXL (3x semis bull) | -18.29% (worst) | +10.36% (best) |
+| SOXS (3x semis bear) | +2.47% (best) | -8.11% (worst) |
+| SQQQ (3x Nasdaq bear) | +2.17% (best) | -1.61% (worst) |
+| PLUG | -4.78% (worst) | +6.47% (best) |
+| NOK | -3.04% (worst) | +5.38% (best) |
+| PATH | +4.03% (best) | -2.55% (worst) |
+
+The leveraged/inverse ETFs (SOXL/SOXS/SQQQ/TQQQ/QID/MSTZ) stand out --
+these are known to suffer volatility decay from daily rebalancing and
+behave very differently from ordinary equities, so a "buy the dip"
+mean-reversion bet on them is really a bet on whether that day's
+leveraged directional move continues, not a stable statistical
+pattern. Tested excluding all 6 from the universe:
+
+| Window | Train N | Train Exp | Test N | Test Exp |
+|---|---:|---:|---:|---:|
+| Window 1, ex-leveraged | 430 | -0.511% | 67 | **+2.002%** (was +1.366%) |
+| Window 2, ex-leveraged | 404 | **+1.965%** (was +1.601%) | 89 | **+1.017%** (was +0.649%) |
+
+**A real but partial improvement, not a full fix.** 3 of 4 numbers
+get better, test expectancy improves meaningfully in both windows --
+but window 1's train stays negative even with leveraged ETFs removed,
+so this isn't the whole explanation either. Combining what's known so
+far: excluding leveraged/inverse products is a legitimate, well-
+motivated universe refinement worth keeping in any future version of
+this strategy, but the deeper regime-dependency (something makes
+mean-reversion genuinely worse in the most recent 90 days specifically,
+beyond just symbol composition) remains unexplained after three
+independent hypotheses (ADX, SPY volatility, leveraged-ETF exclusion).
+
+**Honest status after this research arc:** mean-reversion is
+meaningfully better-evidenced than the trend-following engine (which
+never once showed positive train expectancy in five attempts) and the
+leveraged-ETF exclusion is a legitimate refinement, but this is not
+yet a strategy with a fully closed, unconditional validation the way
+crypto's is. Recommending against deploying it to `stock_main.py`
+as-is. Reasonable options for a real conversation: (a) keep researching
+what actually drives the window 1/window 2 gap (more time-consuming,
+open-ended), (b) deploy it anyway as a small-size, closely-monitored
+parallel live experiment given it's the best evidence stocks has
+produced yet, or (c) leave stocks fully observational until a cleaner
+signal emerges. No live change made.
