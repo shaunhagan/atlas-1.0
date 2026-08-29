@@ -39,6 +39,7 @@ from config import (
     BOLLINGER_PERIOD,
     BOLLINGER_STDDEV,
     MEANREV_RSI_OVERSOLD,
+    ADX_PERIOD,
 )
 
 
@@ -51,12 +52,18 @@ def simulate_symbol(
     rsi_oversold=MEANREV_RSI_OVERSOLD,
     bollinger_period=BOLLINGER_PERIOD,
     bollinger_stddev=BOLLINGER_STDDEV,
+    max_adx=None,
+    adx_period=ADX_PERIOD,
 ):
     """Same ATR bracket exit mechanics as stock_backtest.simulate_symbol
     -- only the entry condition differs (BB lower band + RSI oversold
-    instead of the EMA/RSI/MACD trend engine)."""
+    instead of the EMA/RSI/MACD trend engine).
 
-    lookback = max(STOCK_CANDLE_LIMIT, bollinger_period)
+    max_adx: optional regime gate -- skip entries when ADX is above
+    this (i.e. the market is trending, not ranging). None = no gate,
+    matching the original ungated research result."""
+
+    lookback = max(STOCK_CANDLE_LIMIT, bollinger_period, adx_period * 3)
 
     trades = []
 
@@ -140,6 +147,16 @@ def simulate_symbol(
         # standard fix).
         if not (price <= lower and rsi < rsi_oversold):
             continue
+
+        if max_adx is not None:
+
+            try:
+                adx = Indicators.adx(highs, lows, closes, adx_period)
+            except Exception:
+                continue
+
+            if adx is None or adx != adx or adx > max_adx:
+                continue
 
         stop_distance = atr_stop_multiplier * atr
 

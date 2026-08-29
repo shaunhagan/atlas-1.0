@@ -396,3 +396,45 @@ attempt for why asset-class transfer needs re-validating, not assuming),
 run mean-reversion as a new parallel live path rather than replacing
 the trend engine, or continue stocks as purely observational until a
 regime-aware version validates. No live change made.
+
+## 2026-08-29 (cont.) -- ADX regime gate tested -- REJECTED, does not reconcile the two windows
+
+Direct hypothesis test: does gating mean-reversion entries by ADX (skip
+trending periods, only trade when ranging) rescue window 1's negative
+train result while preserving window 2's edge? Added
+`Indicators.adx()` (standard Wilder ADX) and a `max_adx` gate to
+`stock_meanrev_backtest.simulate_symbol`, tested ADX<30/25/20/15 plus
+no-gate on both windows (`stock_meanrev_regime_test.py`):
+
+| Window | Gate | Train N | Train Exp | Test N | Test Exp |
+|---|---|---:|---:|---:|---:|
+| Window 1 | No gate | 487 | -0.482% | 76 | +1.366% |
+| Window 1 | ADX<30 | 523 | -0.372% | 99 | +0.186% |
+| Window 1 | ADX<25 | 517 | -0.283% | 116 | +0.650% |
+| Window 1 | ADX<20 | 410 | -0.886% | 104 | +0.191% |
+| Window 1 | ADX<15 | 192 | -0.148% | 66 | +0.976% |
+| Window 2 | No gate | 477 | +1.601% | 116 | +0.649% |
+| Window 2 | ADX<30 | 499 | +1.523% | 120 | +0.237% |
+| Window 2 | ADX<25 | 485 | +1.092% | 127 | +1.004% |
+| Window 2 | ADX<20 | 421 | +0.960% | 110 | +0.647% |
+| Window 2 | ADX<15 | 212 | +0.728% | 51 | -0.668% |
+
+**Rejected -- ADX is not the mechanism.** Window 1's train stays
+negative at every threshold tested, never crossing into positive
+territory -- the gate doesn't isolate the bad trades there. Window 2's
+train *degrades* monotonically as the gate tightens (+1.601% ungated
+down to +0.728% at ADX<15) -- tightening the gate strips out some of
+what was working there too, the opposite of the intended effect.
+Per-symbol trend-strength (ADX) is not what separates the good window
+from the bad one, despite being the textbook first guess from the
+external research. Whatever actually distinguishes window 1 from
+window 2 is something else -- broader market direction/volatility,
+sector rotation, or just genuine time-varying returns that don't
+reduce to a single technical filter. Not pursuing further ADX
+variants; next candidate is the already-built SPY volatility filter
+(a market-wide, not per-symbol, regime signal) rather than another
+ADX threshold.
+
+**Still not deploying to `stock_main.py`.** Mean-reversion remains
+better-evidenced than the trend engine but not yet a validated,
+regime-gated edge.

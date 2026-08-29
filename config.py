@@ -261,6 +261,21 @@ MEANREV_RSI_OVERSOLD = 30
 
 MEANREV_RSI_OVERBOUGHT = 70
 
+# Regime gate: 2026-08-29's robustness sweep found the BB/RSI entry is
+# NOT a stable edge on its own -- train expectancy was negative across
+# every parameter combination tested in the most recent 90-day window,
+# positive across every combination in the 90-180-day-ago window.
+# Matches external research directly: mean-reversion strategies fail in
+# trending regimes, work in ranging ones. ADX is the standard trend-
+# strength-independent-of-direction measure for exactly this gate
+# (below the threshold = ranging/choppy = safe for mean reversion,
+# above = trending = sit out). 25 is the conventional
+# trending/ranging boundary, not yet backtest-tuned here.
+
+ADX_PERIOD = 14
+
+MEANREV_MAX_ADX = 25
+
 
 # ============================================================
 # TECHNICAL INDICATORS

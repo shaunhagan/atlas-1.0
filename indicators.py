@@ -19,6 +19,7 @@ from config import (
     REGIME_LOOKBACK,
     BOLLINGER_PERIOD,
     BOLLINGER_STDDEV,
+    ADX_PERIOD,
 )
 
 
@@ -160,6 +161,46 @@ class Indicators:
         lower = middle - stddev * std
 
         return upper.iloc[-1], middle.iloc[-1], lower.iloc[-1]
+
+    @staticmethod
+    def adx(highs, lows, closes, period=ADX_PERIOD):
+        """Standard Wilder ADX -- trend strength independent of
+        direction. Low = ranging/choppy, high = trending. Used to gate
+        the mean-reversion research strategy to the regimes it
+        actually works in (STOCK_OPTIMIZATION_LOG.md 2026-08-29 found
+        it fails in trending periods)."""
+
+        highs = pd.Series(highs)
+        lows = pd.Series(lows)
+        closes = pd.Series(closes)
+
+        up_move = highs.diff()
+        down_move = -lows.diff()
+
+        plus_dm = ((up_move > down_move) & (up_move > 0)) * up_move
+        minus_dm = ((down_move > up_move) & (down_move > 0)) * down_move
+
+        prev_close = closes.shift(1)
+
+        true_range = pd.concat([
+            highs - lows,
+            (highs - prev_close).abs(),
+            (lows - prev_close).abs(),
+        ], axis=1).max(axis=1)
+
+        # Wilder's smoothing (an EMA with alpha = 1/period).
+        atr = true_range.ewm(alpha=1 / period, adjust=False).mean()
+        smoothed_plus_dm = plus_dm.ewm(alpha=1 / period, adjust=False).mean()
+        smoothed_minus_dm = minus_dm.ewm(alpha=1 / period, adjust=False).mean()
+
+        plus_di = 100 * smoothed_plus_dm / atr
+        minus_di = 100 * smoothed_minus_dm / atr
+
+        dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+
+        adx = dx.ewm(alpha=1 / period, adjust=False).mean()
+
+        return adx.iloc[-1]
 
     @staticmethod
     def volatility(closes, period=REGIME_LOOKBACK):
