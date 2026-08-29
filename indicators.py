@@ -16,7 +16,9 @@ from config import (
     MACD_SIGNAL,
     VOLUME_PERIOD,
     ATR_PERIOD,
-    REGIME_LOOKBACK
+    REGIME_LOOKBACK,
+    BOLLINGER_PERIOD,
+    BOLLINGER_STDDEV,
 )
 
 
@@ -138,6 +140,26 @@ class Indicators:
         ], axis=1).max(axis=1)
 
         return true_range.rolling(period).mean().iloc[-1]
+
+    @staticmethod
+    def bollinger_bands(closes, period=BOLLINGER_PERIOD, stddev=BOLLINGER_STDDEV):
+        """Returns (upper, middle, lower). middle is the SMA, matching
+        the standard Bollinger Bands definition (not the EMA the rest
+        of this project otherwise favours) -- deliberate, since the
+        mean-reversion research this feeds is testing against the
+        commonly-cited SMA-based version, not a variant."""
+
+        closes = pd.Series(closes)
+
+        middle = closes.rolling(period).mean()
+
+        std = closes.rolling(period).std()
+
+        upper = middle + stddev * std
+
+        lower = middle - stddev * std
+
+        return upper.iloc[-1], middle.iloc[-1], lower.iloc[-1]
 
     @staticmethod
     def volatility(closes, period=REGIME_LOOKBACK):

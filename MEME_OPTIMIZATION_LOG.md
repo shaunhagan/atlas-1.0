@@ -207,9 +207,47 @@ crypto-market calm is the wrong shape of filter for this asset class.
 **Rejected. Confirms the original design choice (no regime/HTF gate on the
 meme tier) was correct, not just untested.**
 
+## 2026-08-29 -- Live bug found and fixed: pathologically tight stops
+
+Live trade log, 2026-08-28 19:50-19:54: MUBARAK/USD opened and hit
+stop-loss 4 times in ~4 minutes, 2 seconds after each entry, ~$3 loss
+each time. Stop distance at entry was ~0% of price (a near-zero live
+5m ATR reading during a dead/flat stretch produced a razor-thin
+bracket that ordinary tick noise triggered almost instantly). Checked
+across the full live log: 4 of 46 stop-loss exits closed within 30
+seconds of entry -- all four from this one cluster, not widespread,
+but a real gap with no floor on how tight `MEME_ATR_STOP_MULTIPLIER *
+atr` can get.
+
+**Fixed**: `meme_paper_trader.py` and `meme_backtest.py` now floor
+stop_distance at `MEME_MIN_STOP_DISTANCE_PCT` (new config, default
+0.5%) of fill price -- `max(atr_stop_multiplier * atr, fill_price *
+min_stop_distance_pct / 100)`.
+
+**Validated the floor value before trusting it** (`meme_min_stop_test.py`,
+30-day window, same split):
+
+| Floor | Train N | Train Exp | Test N | Test Exp |
+|---|---:|---:|---:|---:|
+| 0.0% (old behaviour) | 275 | +0.502% | 101 | +1.384% |
+| 0.25% | 275 | +0.502% | 101 | +1.383% |
+| **0.5% (deployed)** | 273 | +0.505% | 101 | +1.377% |
+| 1.0% | 273 | +0.454% | 99 | +1.432% |
+| 1.5% | 214 | +0.914% | 92 | +1.456% |
+
+0.5% removes only 2 of 275 train trades (the pathological ones) and
+leaves expectancy essentially unchanged either way -- a safe, minimal
+fix for the actual bug observed, not a performance play. 1.0-1.5%
+trend better on both cuts, but that's the same shrinking-N-as-the-grid-
+tightens shape already rejected once in this log (parameter sweep,
+above) -- not confirming it without a proper independent re-check, so
+staying at 0.5% rather than chasing it. Restarting the live meme bot to
+pick up the fix.
+
 ## Next steps (not yet done)
 
 None outstanding. The meme tier has now been through backtest, train/test,
-ablation, parameter sweep, and a regime-filter transfer check -- every
-stage confirmed the original hand-picked settings and design (aggressive,
-no regime gate) rather than finding something to change.
+ablation, parameter sweep, a regime-filter transfer check, and a live-bug
+fix (stop-distance floor) -- every stage confirmed the original hand-picked
+settings and design (aggressive, no regime gate) rather than finding
+something to change, aside from the one concrete bug above.

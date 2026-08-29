@@ -68,7 +68,16 @@ MEME_ATR_STOP_MULTIPLIER = 6.0
 
 MEME_RISK_REWARD_RATIO = 3.5
 
+# A floor on how tight the ATR-derived stop can get. Real live 5m ATR
+# occasionally reads near-zero for a thinly-traded meme coin during a
+# dead/flat stretch, producing a stop_distance a fraction of a percent
+# from entry -- 2026-08-28 19:50-19:54 live log: MUBARAK/USD opened and
+# hit stop-loss 4 times in ~4 minutes, 2 seconds after each entry,
+# stop distance ~0% of price. Backtest-validated (MEME_OPTIMIZATION_LOG.md
+# 2026-08-29) against 0%/0.5%/1.0%/1.5% floors before deploying live.
 MEME_MIN_CONFIDENCE = 55
+
+MEME_MIN_STOP_DISTANCE_PCT = 0.5
 
 MEME_TRADING_FRICTION_PCT = 0.0015
 
@@ -229,6 +238,28 @@ REGIME_VOLATILITY_THRESHOLD_PCT = 0.10
 HTF_TIMEFRAME = "1h"
 
 HTF_CANDLE_LIMIT = 100
+
+
+# ============================================================
+# MEAN REVERSION (research/backtesting only, NOT live)
+# ============================================================
+
+# Not read by any live scanner path -- used by stock_meanrev_backtest.py
+# to test a structurally different (mean-reversion, not trend-following)
+# strategy specifically for stocks, after five independent validation
+# attempts (raw config, exit-param sweep, ablation, momentum toggle,
+# corrected symbol universe) all found no edge for the EMA/RSI/MACD
+# trend engine there (STOCK_OPTIMIZATION_LOG.md). Values are the
+# commonly-cited defaults for BB+RSI mean reversion on intraday charts,
+# not yet backtest-tuned.
+
+BOLLINGER_PERIOD = 20
+
+BOLLINGER_STDDEV = 2.0
+
+MEANREV_RSI_OVERSOLD = 30
+
+MEANREV_RSI_OVERBOUGHT = 70
 
 
 # ============================================================

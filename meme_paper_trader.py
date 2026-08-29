@@ -16,6 +16,7 @@ from config import (
     MEME_RISK_REWARD_RATIO,
     MEME_MAX_OPEN_TRADES,
     MEME_TRADING_FRICTION_PCT,
+    MEME_MIN_STOP_DISTANCE_PCT,
 )
 
 import meme_portfolio as portfolio
@@ -56,7 +57,10 @@ def _open_position(symbol, price, confidence, atr):
 
     fill_price = price * (1 + MEME_TRADING_FRICTION_PCT)
 
-    stop_distance = MEME_ATR_STOP_MULTIPLIER * atr
+    stop_distance = max(
+        MEME_ATR_STOP_MULTIPLIER * atr,
+        fill_price * MEME_MIN_STOP_DISTANCE_PCT / 100,
+    )
 
     stop_loss = fill_price - stop_distance
 

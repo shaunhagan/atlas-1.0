@@ -31,6 +31,7 @@ from config import (
     MEME_RISK_REWARD_RATIO,
     MEME_TRADING_FRICTION_PCT,
     MEME_MIN_CONFIDENCE,
+    MEME_MIN_STOP_DISTANCE_PCT,
     MEME_SCAN_LIMIT,
     EMA_FAST,
     EMA_SLOW,
@@ -221,6 +222,7 @@ def simulate_symbol(
     risk_reward_ratio=MEME_RISK_REWARD_RATIO,
     friction_pct=MEME_TRADING_FRICTION_PCT,
     min_confidence=MEME_MIN_CONFIDENCE,
+    min_stop_distance_pct=MEME_MIN_STOP_DISTANCE_PCT,
     regime_ok_fn=None,
     require_htf_confirmation=False,
     htf="1h",
@@ -332,9 +334,12 @@ def simulate_symbol(
         if htf_trend_ok is not None and not htf_trend_ok(candles[i][0]):
             continue
 
-        stop_distance = atr_stop_multiplier * atr
-
         fill_price = price * (1 + friction_pct)
+
+        stop_distance = max(
+            atr_stop_multiplier * atr,
+            fill_price * min_stop_distance_pct / 100,
+        )
 
         candidate_stop = fill_price - stop_distance
 
