@@ -350,3 +350,49 @@ Next: parameter sweep on the BB period/stddev and RSI threshold, plus
 a decision on whether to run this as a new live path alongside (not
 replacing) the trend engine, or swap it in -- worth a direct
 conversation given it would be the biggest live change yet.
+
+## 2026-08-29 (cont.) -- Parameter robustness sweep reveals regime dependency, not a clean win
+
+Swept BB stddev (1.5/2.0/2.5) x RSI oversold threshold (25/30/35), 9
+combinations, on both windows (`stock_meanrev_robustness.py`, reusing
+already-cached candle data).
+
+**Window 2 (90-180d ago): robust across the whole grid.** TRAIN
+positive in all 9 combinations (+1.04% to +1.82%). TEST positive in
+7/9, only slightly negative in the other 2 (-0.26%, -0.52%). Not a
+lucky single combination -- this window's edge is real and holds up
+across nearby parameter choices.
+
+**Window 1 (last 90d): a different, important signal.** TRAIN is
+**negative in all 9/9 combinations** (-0.13% to -0.91%), regardless
+of parameters -- this isn't noise or a bad parameter pick, the entire
+most-recent-90-day period was unfavourable for this strategy shape.
+TEST (the most recent ~3 weeks specifically) is positive in 8/9, but
+given train's uniform negativity across the whole grid, that reads
+more like a short recent bounce than a stable edge holding in current
+conditions.
+
+**Honest conclusion: this is not "mean reversion works," it's "mean
+reversion works well in some regimes and poorly in others."** Matches
+the external research directly -- mean-reversion strategies are
+documented to fail in strong trends, momentum strategies fail in
+ranges, and regime recognition is "the master skill." Window 2 was
+apparently more range-bound (great for this approach); window 1 was
+apparently more trending (bad for it, consistent with the *trend*
+engine also failing everywhere -- if trend-following was failing due
+to false-breakout whipsaw rather than absence of trends, both
+readings would need reconciling, worth checking later).
+
+**Not deploying to `stock_main.py` on this evidence.** It's a
+genuinely better-evidenced strategy than the trend engine (which
+never once showed a positive train result in five attempts), but
+"regime-dependent, sometimes strongly negative" is not the same as
+"validated edge" without pairing it with a regime filter to sit out
+the bad periods -- exactly the gap that made window 1's train
+negative. Flagging for a direct conversation: build a regime filter
+for this specifically (a range/trend detector, not the crypto BTC-
+volatility one which doesn't transfer -- see meme's rejected transfer
+attempt for why asset-class transfer needs re-validating, not assuming),
+run mean-reversion as a new parallel live path rather than replacing
+the trend engine, or continue stocks as purely observational until a
+regime-aware version validates. No live change made.
