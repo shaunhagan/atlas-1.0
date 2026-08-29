@@ -290,3 +290,63 @@ corrected symbol universe) have all failed to find a validated
 edge for this signal engine on stocks.** Live stock paper trading
 continues as-is, observational only -- same status as before, just on
 firmer footing now that the universe question is closed.
+
+## 2026-08-29 -- Structurally different strategy: Bollinger Band + RSI mean reversion
+
+Five straight rejections of the EMA/RSI/MACD trend engine raised the
+question of whether the *asset class* has no edge, or the *strategy
+type* is wrong for it. External research: momentum/trend strategies are
+widely documented to underperform specifically in efficiently-priced,
+heavily-arbitraged large-cap equities (high turnover/transaction-cost
+drag, frequent false breakouts), while mean-reversion has real evidence
+at intraday timeframes -- worth testing as a structurally different
+approach rather than another retune of an engine already shown dead.
+
+Built `stock_meanrev_backtest.py`: BUY when price closes at/below the
+lower Bollinger Band (20-period, 2 stddev) AND RSI < 30 -- long-only,
+same ATR-based bracket exit/position mechanics as the trend engine, so
+only the entry signal differs (apples-to-apples comparison, not a
+confound). New `Indicators.bollinger_bands()`, new `BOLLINGER_*` /
+`MEANREV_RSI_*` config (research-only, not read by any live path yet).
+
+**Window 1 (last 90 days) -- mixed:**
+
+| Split | Trades | Win Rate | Expectancy |
+|---|---:|---:|---:|
+| Train | 487 | 27.1% | -0.482% |
+| Test (held out) | 76 | 42.1% | **+1.366%** |
+
+Train negative, test positive -- the opposite of the classic
+overfitting shape (which would be train-good/test-bad), but a strategy
+whose sign flips between cuts isn't a confirmed edge on its own either.
+Didn't stop at one ambiguous window -- ran a second, non-overlapping
+90-180-days-ago window (`stock_meanrev_window2.py`) to check whether
+the positive test result replicates or was a fluke, mirroring the
+multi-window discipline `regime_filter_traintest.py` already uses for
+crypto.
+
+**Window 2 (90-180 days ago) -- clean, both cuts positive:**
+
+| Split | Trades | Win Rate | Expectancy |
+|---|---:|---:|---:|
+| Train | 477 | 36.7% | **+1.601%** |
+| Test (held out) | 116 | 27.6% | **+0.649%** |
+
+**Combined picture, focusing on the only numbers this log trusts
+(held-out test periods, never touched by tuning):** window 1 test
++1.366%, window 2 test +0.649% -- **positive in both independent
+windows.** This is the first time in this entire stock research trail
+(six attempts now, five for the trend engine plus this one) that a
+held-out test result has been positive more than once, let alone
+consistently across non-overlapping windows.
+
+**Not yet a green light to deploy live.** This is a promising,
+replicating signal, not a fully closed case -- window 1's train
+result being negative deserves a robustness check (parameter
+sensitivity, maybe a third window) before touching `stock_main.py`,
+consistent with this log's own rule: "if a change looks like a genuine
+improvement, open a PR / get sign-off before it reaches live config."
+Next: parameter sweep on the BB period/stddev and RSI threshold, plus
+a decision on whether to run this as a new live path alongside (not
+replacing) the trend engine, or swap it in -- worth a direct
+conversation given it would be the biggest live change yet.
