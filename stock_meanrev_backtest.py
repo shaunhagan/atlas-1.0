@@ -54,6 +54,7 @@ def simulate_symbol(
     bollinger_stddev=BOLLINGER_STDDEV,
     max_adx=None,
     adx_period=ADX_PERIOD,
+    regime_ok_fn=None,
 ):
     """Same ATR bracket exit mechanics as stock_backtest.simulate_symbol
     -- only the entry condition differs (BB lower band + RSI oversold
@@ -61,7 +62,12 @@ def simulate_symbol(
 
     max_adx: optional regime gate -- skip entries when ADX is above
     this (i.e. the market is trending, not ranging). None = no gate,
-    matching the original ungated research result."""
+    matching the original ungated research result.
+
+    regime_ok_fn: optional external, timestamp-keyed gate (e.g. a SPY
+    volatility filter from regime_filter_test.build_regime_filters) --
+    same interface backtest.py/stock_backtest.py already use, so it's
+    a drop-in for testing market-wide (not per-symbol) regime signals."""
 
     lookback = max(STOCK_CANDLE_LIMIT, bollinger_period, adx_period * 3)
 
@@ -157,6 +163,9 @@ def simulate_symbol(
 
             if adx is None or adx != adx or adx > max_adx:
                 continue
+
+        if regime_ok_fn is not None and not regime_ok_fn(candles[i][0]):
+            continue
 
         stop_distance = atr_stop_multiplier * atr
 
