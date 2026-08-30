@@ -244,6 +244,45 @@ above) -- not confirming it without a proper independent re-check, so
 staying at 0.5% rather than chasing it. Restarting the live meme bot to
 pick up the fix.
 
+## 2026-08-30 -- Diagnosed the live win-rate drop: real market downtrend, not a bug
+
+Live win rate has been running well below the validated 27-33% test-
+period range (down to 16.7% over 84 closed trades by 2026-08-30) since
+the 2026-08-27 backtest validation. Checked for a bug first (symbol-
+level breakdown): 16 of 18 traded coins are net negative -- broad-
+based, not concentrated in one or two bad symbols, ruling out a
+symbol-specific issue.
+
+**Root cause: a genuine, broad meme-coin decline over the live trading
+period.** Checked recent price action directly (2026-08-28 to
+2026-08-30, ~2.5 days): BTC/USDT -2.09%, and every actively-traded meme
+coin down alongside it -- DOGE -2.84%, SHIB -3.55%, PEPE -3.28%, PNUT
+-3.31%, MOODENG -4.91%, SPX -4.43%, GIGA -7.78%, TRUMP -10.51%. This is
+a real, correlated risk-off move across the whole sector, amplified in
+the higher-beta meme names exactly as expected. The meme tier runs the
+same long-only, trend-following signal engine as crypto with
+deliberately NO regime gate (tested and rejected 2026-08-27 --
+BTC-volatility gating hurt performance in backtest) -- a sustained
+market-wide downtrend is precisely the condition that design has no
+defense against. This is real variance the original backtest's
+positive expectancy already priced in as a probability, not a flaw
+found in production.
+
+**Circuit breaker confirmed working as designed, not silently failing.**
+Today's (2026-08-30) day-start equity was 9191.96, current 9074.03 --
+a 1.28% drawdown, nowhere near the 20% `MEME_DAILY_LOSS_LIMIT_PCT`
+trigger. The larger -8.92% cumulative figure is the accumulation of
+several consecutive down days, not one bad day -- exactly what a
+*daily* guard is scoped to miss by design (it protects against a single
+bad session, not a multi-day drawdown). Not a gap to fix, a reminder of
+what this specific safeguard does and doesn't cover.
+
+**No code change made.** Recommend continued monitoring rather than
+intervention -- reacting to a real, correctly-functioning-as-designed
+drawdown by changing live settings would be exactly the kind of
+un-validated, panic-driven config change this project's whole
+discipline exists to avoid.
+
 ## Next steps (not yet done)
 
 None outstanding. The meme tier has now been through backtest, train/test,
