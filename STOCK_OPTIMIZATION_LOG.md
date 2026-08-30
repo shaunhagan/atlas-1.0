@@ -498,3 +498,41 @@ open-ended), (b) deploy it anyway as a small-size, closely-monitored
 parallel live experiment given it's the best evidence stocks has
 produced yet, or (c) leave stocks fully observational until a cleaner
 signal emerges. No live change made.
+
+## 2026-08-30 -- Fourth regime hypothesis (SPY trend direction alone) also rejected; stopping the hunt
+
+Checked SPY's raw performance in each window directly first: window 1
++1.65% (90 days), window 2 +11.38% -- neither was a decline, ruling
+out "bear market vs bull market" as the story. But window 2's gain
+was far stronger/more sustained than window 1's comparatively flat
+one, suggesting a narrower hypothesis worth one more test: does mean-
+reversion need a genuinely strong uptrend specifically (not just "not
+declining"), tested via SPY price vs its own EMA -- trend direction
+alone this time, without the volatility condition the already-rejected
+combined filter bundled in.
+
+Also rejected (`stock_meanrev_trend_test.py`):
+
+| Window | Gate | Train N | Train Exp | Test N | Test Exp |
+|---|---|---:|---:|---:|---:|
+| Window 1 | No filter | 487 | -0.482% | 76 | +1.366% |
+| Window 1 | SPY uptrend only | 456 | -0.370% | 66 | +0.110% |
+| Window 2 | No filter | 477 | +1.601% | 116 | +0.649% |
+| Window 2 | SPY uptrend only | 397 | +1.043% | 115 | +0.647% |
+
+Window 1's train stays negative, and its test result gets *worse*
+(+1.366% -> +0.110%) under the gate. Window 2 also degrades on train.
+
+**Stopping the regime-filter search here.** Four independent
+hypotheses tried (ADX trend strength, SPY volatility, SPY volatility+
+trend combined, SPY trend direction alone) -- none explains or fixes
+the window 1/window 2 gap. Whatever actually separates the two
+windows isn't captured by any of the standard technical regime
+signals; further filter guessing has hit clear diminishing returns
+and risks turning into exactly the kind of blind knob-turning this
+project's discipline exists to avoid. **Final status: mean-reversion
+remains the best-evidenced stock strategy found so far (unlike the
+trend engine, which failed unconditionally), the leveraged-ETF
+exclusion is a keeper, but it is not a fully validated, regime-proof
+edge. Not deploying to `stock_main.py`.** Worth a direct conversation
+on next steps rather than more autonomous filter search.
