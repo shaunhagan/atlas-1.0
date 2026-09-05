@@ -241,17 +241,24 @@ HTF_CANDLE_LIMIT = 100
 
 
 # ============================================================
-# MEAN REVERSION (research/backtesting only, NOT live)
+# MEAN REVERSION (LIVE for stocks as of 2026-09-05)
 # ============================================================
 
-# Not read by any live scanner path -- used by stock_meanrev_backtest.py
-# to test a structurally different (mean-reversion, not trend-following)
-# strategy specifically for stocks, after five independent validation
-# attempts (raw config, exit-param sweep, ablation, momentum toggle,
-# corrected symbol universe) all found no edge for the EMA/RSI/MACD
-# trend engine there (STOCK_OPTIMIZATION_LOG.md). Values are the
-# commonly-cited defaults for BB+RSI mean reversion on intraday charts,
-# not yet backtest-tuned.
+# stock_scanner.py now runs THIS entry logic (BB lower band + RSI
+# oversold), not the EMA/RSI/MACD trend engine -- five independent
+# validation attempts (raw config, exit-param sweep, ablation, momentum
+# toggle, corrected symbol universe) all found zero edge for the trend
+# engine on stocks, confirmed live too (0% win rate over 20 real trades
+# before this switch). Mean reversion is not a clean, unconditional
+# win either -- four regime-filter hypotheses (ADX, SPY volatility,
+# volatility+trend, trend direction) all failed to explain why it was
+# strongly positive in one 90-day backtest window and negative in
+# another (STOCK_OPTIMIZATION_LOG.md, 2026-08-29/30) -- but it is
+# meaningfully better-evidenced (positive held-out test expectancy in
+# two independent windows, something the trend engine never once
+# achieved) and the current engine has proven live-negative with
+# certainty. Deployed as the better-evidenced option, not a fully
+# closed case -- watch live results closely.
 
 BOLLINGER_PERIOD = 20
 
@@ -260,6 +267,23 @@ BOLLINGER_STDDEV = 2.0
 MEANREV_RSI_OVERSOLD = 30
 
 MEANREV_RSI_OVERBOUGHT = 70
+
+# 2026-08-30 symbol-level diagnostic: leveraged/inverse ETFs (3x/2x
+# products) flip wildly between best- and worst-performer across
+# backtest windows -- they suffer volatility decay from daily
+# rebalancing and don't behave like ordinary equities, so a "buy the
+# dip" bet on them is really a bet on that day's leveraged move
+# continuing, not a stable statistical pattern. Excluding them was a
+# real, if partial, improvement in every backtest cut tested. Excluded
+# live via stock_exchange.get_markets().
+
+LEVERAGED_INVERSE_ETFS = {
+    "SOXL", "SOXS", "TQQQ", "SQQQ", "QID", "MSTZ", "NVDL", "MSTU",
+    "BOIL", "KOLD", "TNA", "TZA", "SPXL", "SPXS", "UVXY", "SVXY",
+    "LABU", "LABD", "TMF", "TMV", "YINN", "YANG", "FAS", "FAZ",
+    "JNUG", "JDST", "NUGT", "DUST", "UDOW", "SDOW", "UCO", "SCO",
+    "GUSH", "DRIP",
+}
 
 # Regime gate: 2026-08-29's robustness sweep found the BB/RSI entry is
 # NOT a stable edge on its own -- train expectancy was negative across

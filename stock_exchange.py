@@ -40,6 +40,7 @@ from config import (
     STOCK_TIMEFRAME_MINUTES,
     STOCK_SCAN_LIMIT,
     STOCK_CANDLE_LIMIT,
+    LEVERAGED_INVERSE_ETFS,
 )
 
 load_dotenv()
@@ -90,7 +91,12 @@ class StockExchange:
         symbols that may not be tradable/fractionable on this account
         (e.g. leveraged/inverse ETPs), so it's used to RANK candidates
         and the existing tradable+fractionable asset list still GATES
-        which of them are actually usable.
+        which of them are actually usable. LEVERAGED_INVERSE_ETFS are
+        excluded outright -- STOCK_OPTIMIZATION_LOG.md 2026-08-30 found
+        they flip wildly between best/worst performer across backtest
+        windows (volatility decay from daily rebalancing, not ordinary
+        equity behaviour) and removing them was a real, if partial,
+        improvement to the mean-reversion strategy now live here.
         """
 
         request = GetAssetsRequest(
@@ -104,6 +110,7 @@ class StockExchange:
             asset.symbol
             for asset in assets
             if asset.tradable and asset.fractionable
+            and asset.symbol not in LEVERAGED_INVERSE_ETFS
         }
 
         most_active = self.screener_client.get_most_actives(

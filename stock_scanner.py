@@ -5,25 +5,35 @@ Stock Market Scanner
 Mirrors scanner.py's structure, using stock_exchange/stock_paper_trader/
 stock_portfolio/stock_logger for full independence from crypto, plus
 market-hours awareness (stocks trade ~6.5h/weekday, unlike crypto's
-24/7). No regime/HTF filter is applied yet -- those were validated
-specifically against BTC and haven't been tested for stocks at all;
-starting with the plain signal engine and researching a stock-specific
-filter the same disciplined way, rather than assuming crypto's
-transfers over.
+24/7).
+
+Runs a Bollinger Band + RSI mean-reversion entry, not crypto's EMA/
+RSI/MACD trend engine -- STOCK_OPTIMIZATION_LOG.md: five independent
+validation attempts found zero edge for the trend engine on stocks
+(confirmed live too, 0% win rate over 20 real trades), while mean
+reversion showed positive held-out test expectancy in two independent
+backtest windows. Not a fully closed case (four regime-filter
+hypotheses failed to explain why one window was much stronger than
+the other), but meaningfully better-evidenced than an engine already
+proven dead. No regime/HTF filter live -- none tested for either
+strategy have validated yet; a stock-specific filter should go
+through the same train/test discipline before being trusted, not be
+assumed to transfer from crypto or added on a hunch.
 """
 
 import time
 
 from config import (
     STOCK_SCAN_INTERVAL,
-    MIN_CONFIDENCE,
     SHOW_TOP,
     DAILY_LOSS_LIMIT_PCT,
+    BOLLINGER_PERIOD,
+    BOLLINGER_STDDEV,
+    MEANREV_RSI_OVERSOLD,
 )
 
 from stock_exchange import exchange
 from indicators import Indicators
-from signals import SignalEngine
 
 import stock_portfolio as portfolio
 from stock_logger import log_equity
@@ -33,6 +43,15 @@ from stock_paper_trader import (
     execute as execute_paper_trade,
     check_all_positions,
 )
+
+
+# Fixed confidence assigned to any firing mean-reversion signal --
+# unlike the trend engine's point-tally, this entry is a binary
+# condition (price at/below the lower band AND RSI confirms oversold),
+# so there's no natural graduated score to report. Value only matters
+# for display/logging; the entry decision itself doesn't threshold on
+# it the way the old MIN_CONFIDENCE gate did.
+MEANREV_SIGNAL_CONFIDENCE = 75
 
 
 # ============================================================
@@ -136,35 +155,37 @@ def analyse_market(symbol):
         # Indicators
         # ----------------------------------------------------
 
-        ema_fast = Indicators.ema_fast(closes)
-        ema_slow = Indicators.ema_slow(closes)
-
         rsi = Indicators.rsi(closes)
-
-        macd, signal, histogram = Indicators.macd(closes)
-
-        volume_ratio = Indicators.volume_ratio(volumes)
 
         atr = Indicators.atr(highs, lows, closes)
 
-        # ----------------------------------------------------
-        # Signal Engine
-        # ----------------------------------------------------
-
-        result = SignalEngine.evaluate(
-            current_price,
-            ema_fast,
-            ema_slow,
-            rsi,
-            macd,
-            signal,
-            histogram,
-            volume_ratio,
+        upper, middle, lower = Indicators.bollinger_bands(
+            closes, BOLLINGER_PERIOD, BOLLINGER_STDDEV,
         )
 
-        decision = result["decision"]
-        confidence = result["confidence"]
-        reasons = result["reasons"]
+        # ----------------------------------------------------
+        # Mean-reversion entry: price at/below the lower band AND
+        # RSI confirms oversold. Requiring both, not either, matches
+        # stock_meanrev_backtest.py exactly -- BB-alone is prone to
+        # false signals in trending regimes, RSI confirmation is the
+        # standard fix. Long-only, no SELL side (matches the rest of
+        # this project -- no shorting anywhere).
+        # ----------------------------------------------------
+
+        signal_fired = (
+            rsi == rsi
+            and lower == lower
+            and current_price <= lower
+            and rsi < MEANREV_RSI_OVERSOLD
+        )
+
+        decision = "BUY" if signal_fired else "HOLD"
+        confidence = MEANREV_SIGNAL_CONFIDENCE if signal_fired else 0
+
+        reasons = (
+            [f"Price at/below lower Bollinger Band, RSI {rsi:.1f} oversold"]
+            if signal_fired else []
+        )
 
         return {
             "symbol": symbol,
@@ -176,13 +197,10 @@ def analyse_market(symbol):
             "high": high_price,
             "low": low_price,
             "close": close_price,
-            "ema_fast": ema_fast,
-            "ema_slow": ema_slow,
             "rsi": rsi,
-            "macd": macd,
-            "signal": signal,
-            "histogram": histogram,
-            "volume_ratio": volume_ratio,
+            "bb_upper": upper,
+            "bb_middle": middle,
+            "bb_lower": lower,
             "atr": atr,
         }
 
@@ -233,7 +251,7 @@ def scan_once():
         if data is None:
             continue
 
-        if data["confidence"] >= MIN_CONFIDENCE:
+        if data["decision"] == "BUY":
 
             results.append(data)
 
@@ -289,31 +307,19 @@ def print_results(results):
         )
 
         print(
-            f"EMA20      : {trade['ema_fast']:.6f}"
+            f"BB Lower   : {trade['bb_lower']:.6f}"
         )
 
         print(
-            f"EMA50      : {trade['ema_slow']:.6f}"
+            f"BB Middle  : {trade['bb_middle']:.6f}"
+        )
+
+        print(
+            f"BB Upper   : {trade['bb_upper']:.6f}"
         )
 
         print(
             f"RSI        : {trade['rsi']:.2f}"
-        )
-
-        print(
-            f"MACD       : {trade['macd']:.8f}"
-        )
-
-        print(
-            f"Signal     : {trade['signal']:.8f}"
-        )
-
-        print(
-            f"Histogram  : {trade['histogram']:.8f}"
-        )
-
-        print(
-            f"Volume     : x{trade['volume_ratio']:.2f}"
         )
 
         print(
@@ -375,12 +381,13 @@ def execute_paper_trades(results):
     """
     Send qualifying signals to the paper trader.
 
-    No regime/HTF gate here -- crypto's volatility filter was
-    validated specifically against BTC and hasn't been tested for
-    stocks at all. Starting with the plain signal engine; a
-    stock-specific regime filter (if warranted) should go through the
-    same train/test validation crypto's did before being trusted,
-    not be assumed to transfer. The daily loss circuit breaker is
+    No regime/HTF gate here -- four regime-filter hypotheses were
+    tried for the mean-reversion entry (ADX, SPY volatility,
+    volatility+trend, trend direction) and none held up
+    (STOCK_OPTIMIZATION_LOG.md 2026-08-29/30); a stock-specific
+    regime filter should go through the same train/test validation
+    before being trusted, not be assumed to transfer or bolted on
+    from a hunch. The daily loss circuit breaker is
     asset-agnostic though, so it applies here too -- never gates exits.
     """
 
