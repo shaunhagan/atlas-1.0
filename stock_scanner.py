@@ -37,7 +37,7 @@ from indicators import Indicators
 
 import stock_portfolio as portfolio
 from stock_logger import log_equity
-from risk_guard import check_daily_loss_limit
+from risk_guard import check_daily_loss_limit, check_portfolio_heat
 
 from stock_paper_trader import (
     execute as execute_paper_trade,
@@ -387,8 +387,15 @@ def execute_paper_trades(results):
     (STOCK_OPTIMIZATION_LOG.md 2026-08-29/30); a stock-specific
     regime filter should go through the same train/test validation
     before being trusted, not be assumed to transfer or bolted on
-    from a hunch. The daily loss circuit breaker is
-    asset-agnostic though, so it applies here too -- never gates exits.
+    from a hunch. The daily loss circuit breaker and portfolio heat
+    gate are asset-agnostic though, so both apply here too -- neither
+    gates exits.
+
+    Heat gate added 2026-09-05: validated via portfolio_backtest.py's
+    shared-state engine (stock_portfolio_heat_test.py) -- milder
+    effect than meme's (stocks span far more diverse sectors, so
+    correlated book-wide moves are less pronounced), but directionally
+    positive and not harmful (test expectancy +1.150% -> +1.571%).
     """
 
     daily_ok = check_daily_loss_limit(
@@ -402,6 +409,17 @@ def execute_paper_trades(results):
             f"positions still managed normally."
         )
 
+    heat_ok = check_portfolio_heat(portfolio, exchange, "stocks")
+
+    if not heat_ok:
+        print(
+            f"\nBook heat too high (most open positions underwater) -- "
+            f"new entries paused until it cools off, existing "
+            f"positions still managed normally."
+        )
+
+    entries_ok = daily_ok and heat_ok
+
     for trade in results:
 
         symbol = trade["symbol"]
@@ -410,7 +428,7 @@ def execute_paper_trades(results):
         price = trade["price"]
         atr = trade["atr"]
 
-        if decision == "BUY" and not daily_ok:
+        if decision == "BUY" and not entries_ok:
             continue
 
         execute_paper_trade(

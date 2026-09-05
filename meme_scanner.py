@@ -26,7 +26,7 @@ from signals import SignalEngine
 
 import meme_portfolio as portfolio
 from meme_logger import log_equity
-from risk_guard import check_daily_loss_limit
+from risk_guard import check_daily_loss_limit, check_portfolio_heat
 
 from meme_paper_trader import (
     execute as execute_paper_trade,
@@ -218,8 +218,16 @@ def execute_paper_trades(results):
     """
     Send qualifying signals to the paper trader. No regime/HTF gate
     by design (this tier is meant to be fast/aggressive/unfiltered) --
-    the daily loss circuit breaker is the one safety net, at a much
-    higher threshold than the safe tier's.
+    the daily loss circuit breaker and portfolio heat gate are the
+    safety nets, at a much higher threshold than the safe tier's.
+
+    Heat gate added 2026-09-05: validated via portfolio_backtest.py's
+    shared-state engine (meme_portfolio_heat_test.py) after the
+    2026-08-28/30 drawdown showed 16 of 18 traded coins net negative
+    at once -- a correlated move MEME_MAX_OPEN_TRADES alone doesn't
+    defend against. Pausing new entries when 60%+ of an already-4+
+    position book is underwater improved both train (+0.555% ->
+    +0.676%) and test (+1.150% -> +1.848%) expectancy.
     """
 
     daily_ok = check_daily_loss_limit(portfolio, "meme", MEME_DAILY_LOSS_LIMIT_PCT)
@@ -231,6 +239,17 @@ def execute_paper_trades(results):
             f"positions still managed normally."
         )
 
+    heat_ok = check_portfolio_heat(portfolio, exchange, "meme")
+
+    if not heat_ok:
+        print(
+            f"\nBook heat too high (most open positions underwater) -- "
+            f"new entries paused until it cools off, existing "
+            f"positions still managed normally."
+        )
+
+    entries_ok = daily_ok and heat_ok
+
     for trade in results:
 
         symbol = trade["symbol"]
@@ -239,7 +258,7 @@ def execute_paper_trades(results):
         price = trade["price"]
         atr = trade["atr"]
 
-        if decision == "BUY" and not daily_ok:
+        if decision == "BUY" and not entries_ok:
             continue
 
         execute_paper_trade(symbol, decision, confidence, price, atr)

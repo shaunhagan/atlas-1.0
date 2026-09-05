@@ -586,3 +586,26 @@ demonstrably better evidence than an engine already proven dead with
 certainty, not because every open question was resolved. Watch live
 results closely and be ready to revisit if the pattern looks like the
 earlier negative window rather than the positive one.
+
+## 2026-09-05 (cont.) -- Portfolio heat gate added
+
+Same feature built for meme (see MEME_OPTIMIZATION_LOG.md 2026-09-05
+for the full writeup of `portfolio_backtest.py`, the shared-state
+engine needed to test this at all) -- pause new entries when 60%+ of
+an already-4+-position book is underwater right now.
+
+Milder effect for stocks than meme, as expected (stocks span far more
+diverse sectors, so book-wide correlated moves are less pronounced
+than in the single-asset-class meme universe), but directionally
+positive and not harmful (`stock_portfolio_heat_test.py`, 90-day
+mean-reversion universe):
+
+| Config | Train N | Train Exp | Test N | Test Exp |
+|---|---:|---:|---:|---:|
+| No gate | 110 | +2.435% | 31 | +1.150% |
+| Heat gate | 112 | +2.471% | 24 | **+1.571%** |
+
+Deployed to `stock_scanner.py` via the same asset-agnostic
+`risk_guard.check_portfolio_heat()` used for meme. Smoke-tested
+against the real live stock portfolio at deploy time (book wasn't hot,
+gate correctly allowed trading). Restarted the live stock bot.

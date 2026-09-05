@@ -283,6 +283,45 @@ drawdown by changing live settings would be exactly the kind of
 un-validated, panic-driven config change this project's whole
 discipline exists to avoid.
 
+## 2026-09-05 -- Portfolio heat gate: built, validated, deployed live
+
+Research into what other trading bots do differently flagged a real
+gap: `MEME_MAX_OPEN_TRADES` caps position COUNT but has no concept of
+CORRELATION -- exactly the failure mode behind the 2026-08-28/30
+drawdown (16 of 18 traded coins net negative at once). No existing
+backtester could test a fix for this, since every one of them
+simulates each symbol completely independently with no shared
+portfolio state across symbols.
+
+Built `portfolio_backtest.py`: a shared-state engine that runs all
+symbols through one synchronized clock with real concurrent-position
+tracking and `MAX_OPEN_TRADES` contention, generic over signal logic
+so it works for meme and stocks alike. Sanity-checked its "no gate"
+baseline against the known independent-symbol result: 289 trades vs
+the old engine's 376 -- lower is correct, not a bug, since shared-
+capital contention is now actually modeled (a real slot limit across
+all symbols) rather than absent.
+
+**Validated a book-heat gate** (`meme_portfolio_heat_test.py`): pause
+new entries when 60%+ of an already-4+-position open book is
+underwater right now.
+
+| Config | Train N | Train Exp | Test N | Test Exp |
+|---|---:|---:|---:|---:|
+| No gate (previous live) | 221 | +0.555% | 68 | +1.150% |
+| Heat gate | 195 | +0.676% | 59 | **+1.848%** |
+
+Both cuts improve, same direction, not from a collapsed sample --
+a real improvement, not the overfitting shape already rejected
+elsewhere in this project.
+
+**Deployed to `meme_scanner.py`** via a new `risk_guard.check_portfolio_
+heat()` (asset-agnostic, same function used for stocks). Smoke-tested
+against the real live portfolio at deploy time: 8 of 10 open positions
+were underwater (80%), correctly triggering the gate immediately --
+confirms the feature is live and working, not just backtested.
+Restarted the live meme bot.
+
 ## Next steps (not yet done)
 
 None outstanding. The meme tier has now been through backtest, train/test,
