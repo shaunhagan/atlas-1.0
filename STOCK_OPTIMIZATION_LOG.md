@@ -536,3 +536,53 @@ trend engine, which failed unconditionally), the leveraged-ETF
 exclusion is a keeper, but it is not a fully validated, regime-proof
 edge. Not deploying to `stock_main.py`.** Worth a direct conversation
 on next steps rather than more autonomous filter search.
+
+## 2026-09-05 -- DEPLOYED: mean reversion is now the live stock strategy
+
+By this point the trend-following engine had also failed live with
+certainty (0% win rate over 20 real trades, matching every backtest
+rejection). Given explicit instruction to keep improving stocks
+rather than leave a proven-dead strategy running, made the call to
+deploy the better-evidenced (if not perfectly regime-proof)
+mean-reversion approach instead of continuing to wait for a fully
+closed case that four independent regime-filter attempts hadn't
+produced.
+
+**Changes:**
+- `stock_scanner.py`'s `analyse_market()` now computes Bollinger
+  Bands + RSI directly and fires BUY when price is at/below the lower
+  band AND RSI < `MEANREV_RSI_OVERSOLD` -- the `SignalEngine`
+  trend-following call is gone from the live stock path entirely.
+  Same ATR-based bracket exit/position sizing throughout, unchanged.
+- `stock_exchange.get_markets()` now excludes `LEVERAGED_INVERSE_ETFS`
+  (SOXL, SOXS, TQQQ, SQQQ, QID, MSTZ, and similar 2x/3x products) --
+  the 2026-08-30 symbol diagnostic found these flip wildly between
+  best/worst performer across backtest windows from daily-rebalancing
+  volatility decay, not ordinary equity behaviour.
+- `config.py`'s mean-reversion block is now marked LIVE, not
+  research-only.
+
+**Re-validated on fresh data before deploying** (cache cleared,
+refetched with the leveraged-excluded universe): the cleanest result
+this whole research trail has produced --
+
+| Split | Trades | Win Rate | Expectancy |
+|---|---:|---:|---:|
+| Full period | 545 | 32.3% | +0.481% |
+| Train | 450 | 32.7% | +0.444% |
+| Test (held out) | 95 | 30.5% | +0.656% |
+
+Both cuts positive and consistent with each other for the first time
+-- no train/test flip-flopping like the earlier two-window research.
+Restarted the live stock bot; market is closed for the weekend so
+this takes effect at next open (2026-09-08).
+
+**Honest framing for whoever reads this later:** this is not a fully
+closed, unconditional validation the way crypto's regime filter is --
+four regime hypotheses failed to explain earlier window-to-window
+variance, meaning the strategy could still have bad stretches driven
+by whatever that unexplained factor is. It was deployed because it is
+demonstrably better evidence than an engine already proven dead with
+certainty, not because every open question was resolved. Watch live
+results closely and be ready to revisit if the pattern looks like the
+earlier negative window rather than the positive one.
