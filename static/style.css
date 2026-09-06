@@ -687,110 +687,19 @@ canvas { max-height: 280px; }
     gap: 20px;
 }
 
-/* ---------- Hero banner ---------- */
+/* ---------- Hero banner (user-supplied full image) ---------- */
 
-.hero-banner {
-    position: relative;
-    padding: 30px 32px;
+.hero-banner-image {
+    border-radius: var(--radius-lg);
     overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
+    border: 1px solid var(--border-soft);
+    line-height: 0;
 }
 
-.hero-banner::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(420px circle at 90% 10%, rgba(79,209,197,0.16), transparent 65%),
-        radial-gradient(300px circle at 100% 100%, rgba(129,140,248,0.14), transparent 60%);
-    pointer-events: none;
-}
-
-.hero-banner .eyebrow {
-    color: var(--accent);
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-}
-
-.hero-banner h1 {
-    font-size: 30px;
-    line-height: 1.15;
-    margin: 0 0 10px;
-    letter-spacing: -0.01em;
-    text-transform: uppercase;
-}
-
-.hero-banner .sub {
-    color: var(--muted);
-    font-size: 13.5px;
-}
-
-.hero-banner .quote-block {
-    flex-shrink: 0;
-    max-width: 200px;
-    border-left: 2px solid var(--accent);
-    padding-left: 16px;
-    font-size: 12.5px;
-    color: var(--muted);
-    font-style: italic;
-    line-height: 1.6;
-    position: relative;
-    z-index: 1;
-}
-
-.hero-banner .quote-block .attribution {
-    margin-top: 8px;
-    font-style: normal;
-    color: var(--muted-dim);
-    font-size: 11px;
-}
-
-/* ---------- Hero photo (Earth) visual ---------- */
-
-.hero-banner-photo {
-    position: relative;
-    overflow: hidden;
-    min-height: 240px;
-}
-
-.hero-banner-photo::before {
-    /* the existing decorative teal/indigo glow -- kept, layered under
-       the photo's own fade so the panel still reads as "Atlas" even
-       where the photo hasn't loaded yet */
-    z-index: 0;
-}
-
-.hero-earth-img {
-    position: absolute;
-    inset: 0;
-    left: 38%;
-    background-repeat: no-repeat;
-    background-size: cover;
-    background-position: center right;
-    animation: earthDrift 40s ease-in-out infinite alternate;
-    z-index: 0;
-}
-
-.hero-earth-fade {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, var(--panel-solid) 0%, rgba(19,26,34,0.85) 30%, rgba(19,26,34,0.15) 55%, transparent 72%);
-    z-index: 1;
-}
-
-@keyframes earthDrift {
-    from { background-position: center right; }
-    to { background-position: 55% center; }
-}
-
-@media (max-width: 900px) {
-    .hero-earth-img, .hero-earth-fade { display: none; }
+.hero-banner-image img {
+    display: block;
+    width: 100%;
+    height: auto;
 }
 
 /* ---------- Top stat cards with sparkline ---------- */

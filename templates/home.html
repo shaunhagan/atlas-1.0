@@ -12,20 +12,8 @@
 {% block content %}
 <div class="content-main">
 
-    <div class="hero-banner glass hero-banner-photo">
-        <div class="hero-earth-img" style="background-image: url('{{ url_for('static', filename='hero-earth.png') }}');"></div>
-        <div class="hero-earth-fade"></div>
-
-        <div style="position:relative; z-index:2;">
-            <div class="eyebrow">Welcome back, {{ dashboard_username or "trader" }}</div>
-            <h1>Autonomous trading<br>for a brighter tomorrow.</h1>
-            <div class="sub">AI-powered. Data-driven. Emotion-free.</div>
-        </div>
-
-        <div class="quote-block" style="position:relative; z-index:2;">
-            &ldquo;Better data. Better decisions. A brighter tomorrow.&rdquo;
-            <div class="attribution">&mdash; Atlas AI</div>
-        </div>
+    <div class="hero-banner-image">
+        <img src="{{ url_for('static', filename='hero-full.png') }}" alt="Atlas AI — Autonomous trading for a brighter tomorrow">
     </div>
 
     <div class="hero-stats">
