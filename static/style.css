@@ -671,6 +671,28 @@ canvas { max-height: 280px; }
     width: 100%;
 }
 
+.two-col {
+    display: grid;
+    grid-template-columns: var(--two-col-ratio, 1.2fr 1fr);
+    gap: 20px;
+    align-items: start;
+    width: 100%;
+}
+
+.three-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 18px;
+    width: 100%;
+}
+
+@media (max-width: 900px) {
+    .two-col, .three-col { grid-template-columns: 1fr; }
+}
+
+.table-wrap { overflow-x: auto; }
+.table-wrap table { min-width: 480px; }
+
 .content-main {
     flex: 1;
     min-width: 0;
@@ -929,10 +951,56 @@ canvas { max-height: 280px; }
 
 @media (max-width: 780px) {
     .app-shell { flex-direction: column; }
-    .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; flex-wrap: wrap; padding: 14px; }
-    .sidebar nav { flex-direction: row; flex-wrap: wrap; margin-top: 10px; }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 10px 12px;
+        background: var(--bg);
+        border-right: none;
+        border-bottom: 1px solid var(--border-soft);
+    }
+    .sidebar .brand { margin-bottom: 8px; }
+    .sidebar .brand-text .tagline { display: none; }
+
+    .sidebar nav {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        margin-top: 0;
+        gap: 4px;
+        padding-bottom: 2px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .nav-section-label { display: none; }
+    .nav-item {
+        flex-shrink: 0;
+        white-space: nowrap;
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    .nav-item.active { padding-left: 8px; border-left: none; border-bottom: 2px solid var(--accent); }
+
     .sidebar-footer { display: none; }
-    .hero-banner { flex-direction: column; align-items: flex-start; }
-    .topbar { flex-wrap: wrap; }
-    .content-side { flex-direction: column; }
+
+    .topbar { padding: 12px 14px; flex-wrap: nowrap; gap: 8px; position: static; }
+    .topbar .search { display: none; }
+    .mode-badge-text { display: none; }
+    .mode-badge { padding: 8px; }
+    .clock { display: none; }
+    .user-chip span { display: none; }
+
+    .content-wrap { padding: 16px 14px 50px; gap: 16px; }
+    .content-side { flex-direction: column; width: 100%; }
+    .content-side > * { min-width: 0; }
+
+    .hero-stats, .mini-stat-row { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 460px) {
+    .hero-stats, .mini-stat-row { grid-template-columns: 1fr; }
+    .card-grid { grid-template-columns: 1fr; }
 }

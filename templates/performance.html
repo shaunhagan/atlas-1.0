@@ -28,7 +28,7 @@
 
     {% for key, meta in books_meta.items() %}
     <div class="perf-page-block" data-book-block="{{ key }}" {% if not loop.first %}hidden{% endif %}>
-        <div class="two-col" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;">
+        <div class="three-col">
             <div class="panel glass">
                 <div class="section-title">Daily (last 30)</div>
                 <div class="table-wrap" style="max-height:400px;">
