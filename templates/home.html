@@ -18,6 +18,48 @@
             <h1>Autonomous trading<br>for a brighter tomorrow.</h1>
             <div class="sub">AI-powered. Data-driven. Emotion-free.</div>
         </div>
+
+        <div class="hero-globe">
+            <svg viewBox="0 0 240 240" class="globe-svg">
+                <defs>
+                    <radialGradient id="globeGrad" cx="35%" cy="30%" r="75%">
+                        <stop offset="0%" stop-color="#1d4a47"/>
+                        <stop offset="55%" stop-color="#0d2222"/>
+                        <stop offset="100%" stop-color="#050a0a"/>
+                    </radialGradient>
+                    <radialGradient id="haloGrad" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#4fd1c5" stop-opacity="0.45"/>
+                        <stop offset="100%" stop-color="#4fd1c5" stop-opacity="0"/>
+                    </radialGradient>
+                </defs>
+
+                <circle cx="120" cy="120" r="118" fill="url(#haloGrad)" class="globe-halo"/>
+
+                <ellipse cx="120" cy="120" rx="106" ry="40" fill="none" stroke="#4fd1c5" stroke-opacity="0.3" stroke-width="0.8"/>
+                <circle r="2.6" fill="#eef2f6" class="satellite">
+                    <animateMotion dur="9s" repeatCount="indefinite"
+                        path="M 120,120 m -106,0 a 106,40 0 1,0 212,0 a 106,40 0 1,0 -212,0"/>
+                </circle>
+
+                <g class="globe-spin">
+                    <circle cx="120" cy="120" r="88" fill="url(#globeGrad)" stroke="#4fd1c5" stroke-opacity="0.45" stroke-width="0.7"/>
+                    <g stroke="#4fd1c5" stroke-opacity="0.28" fill="none" stroke-width="0.6">
+                        <ellipse cx="120" cy="120" rx="88" ry="88"/>
+                        <ellipse cx="120" cy="120" rx="60" ry="88"/>
+                        <ellipse cx="120" cy="120" rx="30" ry="88"/>
+                        <ellipse cx="120" cy="94" rx="72" ry="16"/>
+                        <ellipse cx="120" cy="120" rx="88" ry="34"/>
+                        <ellipse cx="120" cy="146" rx="72" ry="16"/>
+                    </g>
+                    <circle cx="78" cy="86" r="3" fill="#4fd1c5" class="node"/>
+                    <circle cx="162" cy="76" r="3" fill="#818cf8" class="node" style="animation-delay:0.6s"/>
+                    <circle cx="150" cy="158" r="3" fill="#fb923c" class="node" style="animation-delay:1.2s"/>
+                    <circle cx="72" cy="150" r="3" fill="#4ade80" class="node" style="animation-delay:1.8s"/>
+                    <circle cx="120" cy="120" r="3" fill="#eef2f6" class="node" style="animation-delay:0.3s"/>
+                </g>
+            </svg>
+        </div>
+
         <div class="quote-block">
             &ldquo;Better data. Better decisions. A brighter tomorrow.&rdquo;
             <div class="attribution">&mdash; Atlas AI</div>
