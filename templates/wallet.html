@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Wallet{% endblock %}
+{% block head %}
+<style>
+    .alloc-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+    .alloc-row:last-child { border-bottom: none; }
+    .alloc-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .alloc-row .name { font-size: 13px; width: 100px; flex-shrink: 0; }
+    .alloc-row .bar-track { flex-grow: 1; height: 7px; border-radius: 999px; background: var(--panel-alt); overflow: hidden; }
+    .alloc-row .bar-fill { height: 100%; border-radius: 999px; }
+    .alloc-row .pct { width: 56px; text-align: right; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .wallet-form select, .wallet-form input {
+        width: 100%; padding: 10px 12px; border-radius: var(--radius-sm);
+        border: 1px solid var(--border); background: var(--panel-alt); color: var(--text); font-size: 13.5px;
+    }
+    .wallet-form label { display:block; font-size: 11.5px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .wallet-form .field { margin-bottom: 14px; }
+    .type-tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; }
+    .type-tag.deposit { color: var(--green); background: rgba(74,222,128,0.12); }
+    .type-tag.withdrawal { color: var(--orange); background: rgba(251,146,60,0.12); }
+    .status-tag { font-size: 10.5px; font-weight: 600; text-transform: uppercase; color: var(--muted); }
+    .status-tag.rejected { color: var(--red); }
+    @keyframes valueFlash {
+        0% { background: rgba(79,209,197,0.25); }
+        100% { background: transparent; }
+    }
+    .flash-on-load { animation: valueFlash 1.2s ease-out; border-radius: 6px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="content-main" style="width:100%;">
+
+    <div class="detail-header">
+        <div>
+            <h1>Wallet</h1>
+            <div class="tagline">Simulated paper capital across every book &mdash; not real funds</div>
+        </div>
+        <div class="trading-mode-banner mode-paper">&#9679; All Balances Are Paper Trading Funds</div>
+    </div>
+
+    <div class="hero-stats">
+        <div class="hero-stat glass kpi-primary">
+            <div class="top-row"><span class="label">Total Portfolio Balance</span></div>
+            <div class="value-row"><span class="value flash-on-load">${{ "%.2f"|format(total_portfolio) }}</span></div>
+            <div class="sub-note">Sum of equity across all books</div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row"><span class="label">Available to Trade</span></div>
+            <div class="value-row"><span class="value">${{ "%.2f"|format(total_cash) }}</span></div>
+            <div class="sub-note">Free cash, not in a position</div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row"><span class="label">In Positions</span></div>
+            <div class="value-row"><span class="value">${{ "%.2f"|format(total_in_positions) }}</span></div>
+            <div class="sub-note">Currently deployed</div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row"><span class="label">Unrealised P&amp;L</span></div>
+            <div class="value-row"><span class="value {{ 'pos' if total_unrealised >= 0 else 'neg' }}">{{ "%+.2f"|format(total_unrealised) }}</span></div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row"><span class="label">Realised P&amp;L</span></div>
+            <div class="value-row"><span class="value {{ 'pos' if total_realised >= 0 else 'neg' }}">{{ "%+.2f"|format(total_realised) }}</span></div>
+        </div>
+    </div>
+
+    <div class="mini-stat-row">
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(74,222,128,0.12); color:var(--green);">&#8595;</div><div><div class="label">Total Deposits</div><div class="value pos">+${{ "%.2f"|format(total_deposits) }}</div></div></div>
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(251,146,60,0.12); color:var(--orange);">&#8593;</div><div><div class="label">Total Withdrawals</div><div class="value neg">-${{ "%.2f"|format(total_withdrawals) }}</div></div></div>
+    </div>
+
+    <div class="panel glass">
+        <div class="section-title">Transaction History</div>
+        <div class="table-wrap" style="max-height:420px;">
+            <table>
+                <thead><tr><th>Date</th><th>Type</th><th>Book</th><th>Amount</th><th>Status</th><th>Balance After</th></tr></thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td>{{ tx.timestamp }}</td>
+                        <td><span class="type-tag {{ tx.type }}">{{ tx.type }}</span></td>
+                        <td><span class="book-chip">{{ tx.book_label }}</span></td>
+                        <td class="{{ 'pos' if tx.type == 'deposit' else 'neg' }}">{{ '+' if tx.type == 'deposit' else '-' }}${{ "%.2f"|format(tx.amount) }}</td>
+                        <td><span class="status-tag {{ tx.status }}">{{ tx.status }}</span></td>
+                        <td>${{ "%.2f"|format(tx.balance_after) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" style="color:var(--muted);">No transactions yet -- deposit or withdraw paper capital below to get started.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<div class="content-side">
+
+    <div class="panel glass">
+        <div class="section-title">Portfolio Allocation</div>
+        {% for key, b in per_book_wallet.items() %}
+        {% set pct = (b.equity / total_portfolio * 100) if total_portfolio else 0 %}
+        <div class="alloc-row">
+            <span class="alloc-swatch" style="background:{{ b.color }};"></span>
+            <span class="name">{{ b.label }}</span>
+            <span class="bar-track"><span class="bar-fill" style="width:{{ pct }}%; background:{{ b.color }};"></span></span>
+            <span class="pct">{{ "%.1f"|format(pct) }}%</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="panel glass">
+        <div class="section-title">Deposit Paper Capital</div>
+        <form class="wallet-form" method="POST" action="{{ url_for('wallet_deposit') }}" onsubmit="return confirm('Deposit paper capital into this book? This adds simulated cash only.');">
+            <div class="field">
+                <label>Book</label>
+                <select name="book" required>
+                    {% for key, meta in books_meta.items() %}
+                    <option value="{{ key }}">{{ meta.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label>Amount (USD)</label>
+                <input type="number" name="amount" min="1" step="0.01" placeholder="1000.00" required>
+            </div>
+            <button type="submit" class="btn" style="border-color: rgba(74,222,128,0.4); color: var(--green);">Deposit</button>
+        </form>
+    </div>
+
+    <div class="panel glass">
+        <div class="section-title">Withdraw Paper Capital</div>
+        <form class="wallet-form" method="POST" action="{{ url_for('wallet_withdraw') }}" onsubmit="return confirm('Withdraw paper capital from this book? This only succeeds if the amount is currently free (not tied up in an open position).');">
+            <div class="field">
+                <label>Book</label>
+                <select name="book" required>
+                    {% for key, meta in books_meta.items() %}
+                    <option value="{{ key }}">{{ meta.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label>Amount (USD)</label>
+                <input type="number" name="amount" min="1" step="0.01" placeholder="500.00" required>
+            </div>
+            <button type="submit" class="btn danger">Withdraw</button>
+        </form>
+    </div>
+
+    <div class="panel glass">
+        <div class="section-title">Trading Risk Limits</div>
+        {% for key, b in per_book_wallet.items() %}
+        <div style="margin-bottom:14px;">
+            <div style="font-size:12.5px; font-weight:700; margin-bottom:6px;">{{ b.label }}</div>
+            {% for name, value in b.risk_limits.items() %}
+            <div class="status-row" style="padding:5px 0;">
+                <span style="font-size:11.5px;">{{ name }}</span>
+                <span class="val" style="font-size:11.5px;">{{ value }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        <div class="explain-note">Enforced live by each book's own risk_guard checks -- not editable here. Change requires updating config.py and re-validating, same discipline as any other strategy change.</div>
+    </div>
+
+</div>
+{% endblock %}

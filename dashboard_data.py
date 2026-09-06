@@ -181,12 +181,16 @@ def combined_open_positions(book_defs):
     return combined
 
 
-def combined_equity_curve(book_defs, point_limit=500):
+def combined_equity_curve(book_defs, point_limit=None):
     """
     Sums each book's equity curve onto a shared timeline. Books log
     at slightly different times, so each book's series is forward-
     filled onto the union of all timestamps (carry the last known
     value forward) rather than requiring exact timestamp alignment.
+
+    point_limit=None returns the full history -- needed for an
+    accurate all-time max-drawdown figure and so the chart's "ALL"
+    range control actually shows everything, not a truncated tail.
     """
 
     per_book_series = []
@@ -232,7 +236,7 @@ def combined_equity_curve(book_defs, point_limit=500):
         if have_any:
             combined.append({"label": ts, "equity": total})
 
-    return combined[-point_limit:]
+    return combined[-point_limit:] if point_limit else combined
 
 
 # ============================================================
@@ -393,6 +397,206 @@ def get_market_signal(exchange_module, symbols_limit=40):
             "bullish_pct": bullish_pct,
             "bearish_pct": 100 - bullish_pct,
             "sample_size": counted,
+        }
+
+    except Exception:
+        return None
+
+
+# ============================================================
+# EXCHANGE CONNECTIVITY -- a real, live check, replacing what used
+# to be a hardcoded "Connected" label. Best-effort: any exception
+# (timeout, auth, network) reads as disconnected rather than crashing
+# the page render.
+# ============================================================
+
+def check_exchange_connectivity(exchange_module):
+
+    try:
+        exchange_module.now_ms()
+        return True
+    except Exception:
+        return False
+
+
+# ============================================================
+# STRATEGY HEALTH -- derived entirely from real trade/equity data,
+# comparing a book's recent trades against its own all-time baseline.
+# Thresholds are documented here, not hidden -- this is meant to be
+# checkable, not a black box.
+# ============================================================
+
+RECENT_TRADE_WINDOW = 20
+
+
+def compute_strategy_health(report_module):
+
+    trades = report_module.load_trades()
+    closed, wins, losses = report_module.summarise_trades(trades)
+    equity_rows = report_module.load_equity_curve()
+
+    if len(closed) < 10:
+
+        return {
+            "status": "watch",
+            "title": "Gathering Data",
+            "detail": f"Only {len(closed)} closed trades so far -- too few to read a health trend from yet.",
+        }
+
+    recent = closed[-RECENT_TRADE_WINDOW:]
+    recent_wins = [t for t in recent if t["pnl"] > 0]
+
+    recent_expectancy = sum(t["pnl"] for t in recent) / len(recent)
+    recent_win_rate = len(recent_wins) / len(recent) * 100
+
+    overall_expectancy = sum(t["pnl"] for t in closed) / len(closed)
+    overall_win_rate = (len(wins) / len(closed) * 100) if closed else 0.0
+
+    overall_drawdown = report_module.max_drawdown(equity_rows)
+
+    # "Recent" drawdown window: the tail of the equity curve roughly
+    # matching how far back RECENT_TRADE_WINDOW trades likely spans.
+    # Approximate on purpose -- this is a health signal, not a precise
+    # backtest metric.
+    recent_equity_rows = equity_rows[-500:] if len(equity_rows) > 500 else equity_rows
+    recent_drawdown = report_module.max_drawdown(recent_equity_rows)
+
+    issues = []
+
+    if recent_expectancy < 0:
+        issues.append("Recent trades running net negative")
+
+    if recent_win_rate < overall_win_rate - 10:
+        issues.append("Win rate deteriorating vs all-time average")
+
+    if overall_drawdown > 0 and recent_drawdown >= overall_drawdown * 0.85:
+        issues.append("Drawdown elevated")
+
+    if not issues:
+        status, title = "good", "Good"
+    elif len(issues) == 1:
+        status, title = "watch", "Watch"
+    else:
+        status, title = "poor", "Poor"
+
+    return {
+        "status": status,
+        "title": title,
+        "detail": " · ".join(issues) if issues else "Recent performance in line with the book's own history.",
+        "recent_expectancy": recent_expectancy,
+        "recent_win_rate": recent_win_rate,
+        "overall_expectancy": overall_expectancy,
+        "overall_win_rate": overall_win_rate,
+        "recent_drawdown": recent_drawdown,
+        "overall_drawdown": overall_drawdown,
+    }
+
+
+# ============================================================
+# SIGNAL REASONING -- "why did/would the bot trade this", computed
+# live for currently open positions by re-running the SAME signal
+# logic the live scanner uses. This is a CURRENT reading, not a
+# stored record of the reasoning at the moment of original entry
+# (that was never persisted to the trade log) -- labelled as such
+# in the UI. Real numbers from a real re-evaluation, never fabricated.
+# ============================================================
+
+def trend_engine_reasoning(exchange_module, symbol, min_confidence):
+    """For crypto and meme -- both run the same EMA/RSI/MACD/volume
+    SignalEngine, just with different thresholds."""
+
+    from indicators import Indicators
+    from signals import SignalEngine
+
+    try:
+
+        ticker = exchange_module.get_ticker(symbol)
+        candles = exchange_module.get_candles(symbol)
+
+        if not candles or len(candles) < 60:
+            return None
+
+        price = float(ticker.get("last") or candles[-1][4])
+
+        closes = [float(c[4]) for c in candles]
+        volumes = [float(c[5]) for c in candles]
+        highs = [float(c[2]) for c in candles]
+        lows = [float(c[3]) for c in candles]
+
+        ema_fast = Indicators.ema_fast(closes)
+        ema_slow = Indicators.ema_slow(closes)
+        rsi = Indicators.rsi(closes)
+        macd, macd_signal, histogram = Indicators.macd(closes)
+        volume_ratio = Indicators.volume_ratio(volumes)
+        atr = Indicators.atr(highs, lows, closes)
+
+        result = SignalEngine.evaluate(
+            price, ema_fast, ema_slow, rsi, macd, macd_signal, histogram,
+            volume_ratio, min_confidence=min_confidence,
+        )
+
+        return {
+            "symbol": symbol,
+            "decision": result["decision"],
+            "confidence": result["confidence"],
+            "reasons": result["reasons"],
+            "price": price,
+            "atr": atr,
+            "rsi": rsi,
+        }
+
+    except Exception:
+        return None
+
+
+def mean_reversion_reasoning(exchange_module, symbol):
+    """For stocks -- the live Bollinger Band + RSI mean-reversion
+    entry, mirroring stock_scanner.analyse_market()'s logic exactly."""
+
+    from indicators import Indicators
+    from config import BOLLINGER_PERIOD, BOLLINGER_STDDEV, MEANREV_RSI_OVERSOLD
+
+    try:
+
+        ticker = exchange_module.get_ticker(symbol)
+        candles = exchange_module.get_candles(symbol)
+
+        if not candles or len(candles) < 60:
+            return None
+
+        price = float(ticker.get("last") or candles[-1][4])
+        closes = [float(c[4]) for c in candles]
+        highs = [float(c[2]) for c in candles]
+        lows = [float(c[3]) for c in candles]
+
+        rsi = Indicators.rsi(closes)
+        atr = Indicators.atr(highs, lows, closes)
+        upper, middle, lower = Indicators.bollinger_bands(closes, BOLLINGER_PERIOD, BOLLINGER_STDDEV)
+
+        fired = (
+            rsi == rsi and lower == lower
+            and price <= lower and rsi < MEANREV_RSI_OVERSOLD
+        )
+
+        reasons = []
+
+        if fired:
+            reasons.append(f"Price at/below lower Bollinger Band ({lower:.4f})")
+            reasons.append(f"RSI {rsi:.1f} confirms oversold (< {MEANREV_RSI_OVERSOLD})")
+        else:
+            if lower == lower and price > lower:
+                reasons.append(f"Price {price:.4f} is above the lower band ({lower:.4f}) -- not oversold enough")
+            if rsi == rsi and rsi >= MEANREV_RSI_OVERSOLD:
+                reasons.append(f"RSI {rsi:.1f} is not below the {MEANREV_RSI_OVERSOLD} oversold threshold")
+
+        return {
+            "symbol": symbol,
+            "decision": "BUY" if fired else "HOLD",
+            "confidence": 75 if fired else 0,
+            "reasons": reasons,
+            "price": price,
+            "atr": atr,
+            "rsi": rsi,
         }
 
     except Exception:

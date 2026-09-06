@@ -13,6 +13,7 @@ between books' live trading code.
 """
 
 import re
+from datetime import datetime, timedelta
 
 
 PNL_PATTERN = re.compile(r"P&L=(-?\d+\.\d+)")
@@ -54,6 +55,70 @@ def full_trade_history(trades):
         })
 
     return list(reversed(history))
+
+
+def downsample_curve(points, recent_full_res_hours=72, target_older_points=1200):
+    """
+    Telescoping downsample for CHART DISPLAY only -- never use this
+    output for a drawdown/return calculation, since evenly-spaced
+    sampling can skip over the exact peak or trough.
+
+    Equity logs every ~30s, so a flat evenly-spaced downsample across
+    the whole history would make short ranges (1D/1W) look sparse and
+    jagged once total history spans more than a few weeks. Instead,
+    the most recent `recent_full_res_hours` are kept at full
+    resolution (covers 1D/most of 1W properly) and everything older
+    is compressed to `target_older_points` (plenty for 1M/3M/1Y/ALL,
+    which don't need per-30-second granularity anyway).
+    """
+
+    if not points:
+        return points
+
+    last_ts = datetime.strptime(points[-1]["label"], "%Y-%m-%d %H:%M:%S")
+    cutoff = last_ts - timedelta(hours=recent_full_res_hours)
+
+    older, recent = [], []
+
+    for point in points:
+
+        point_ts = datetime.strptime(point["label"], "%Y-%m-%d %H:%M:%S")
+
+        (older if point_ts < cutoff else recent).append(point)
+
+    if len(older) > target_older_points:
+
+        step = len(older) / target_older_points
+
+        older = [older[int(i * step)] for i in range(target_older_points)]
+
+    return older + recent
+
+
+def max_drawdown_from_curve(points):
+    """Same peak-tracking logic as report.max_drawdown(), generalised
+    to a list of {"equity": float} points (the shape
+    dashboard_data.combined_equity_curve returns) instead of raw CSV
+    rows, so the combined-books drawdown on the Dashboard overview is
+    a real computed figure, not an average of the per-book numbers."""
+
+    if not points:
+        return 0.0
+
+    peak = points[0]["equity"]
+    worst = 0.0
+
+    for point in points:
+
+        value = point["equity"]
+
+        peak = max(peak, value)
+
+        if peak > 0:
+            drawdown = (peak - value) / peak * 100
+            worst = max(worst, drawdown)
+
+    return worst
 
 
 def group_by_period(equity_rows, period="day"):

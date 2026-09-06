@@ -5,6 +5,8 @@
 <title>Atlas AI — {% block title %}Dashboard{% endblock %}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="{{ url_for('static', filename='charts.js') }}"></script>
 {% block head %}{% endblock %}
 </head>
 <body>
@@ -26,6 +28,7 @@
             <a class="nav-item {{ 'active' if active_nav == 'stocks' else '' }}" href="{{ url_for('book_detail', key='stocks') }}"><span class="icon">&#9650;</span> Stocks</a>
             <a class="nav-item {{ 'active' if active_nav == 'meme' else '' }}" href="{{ url_for('book_detail', key='meme') }}"><span class="icon">&#9733;</span> Meme Coins</a>
             <a class="nav-item {{ 'active' if active_nav == 'watchlist' else '' }}" href="{{ url_for('watchlist') }}"><span class="icon">&#128278;</span> Watchlist</a>
+            <a class="nav-item {{ 'active' if active_nav == 'wallet' else '' }}" href="{{ url_for('wallet_page') }}"><span class="icon">&#128179;</span> Wallet</a>
 
             <div class="nav-section-label">Records</div>
             <a class="nav-item {{ 'active' if active_nav == 'trade_history' else '' }}" href="{{ url_for('trade_history') }}"><span class="icon">&#8635;</span> Trade History</a>
@@ -52,7 +55,9 @@
                 <input type="text" id="globalSearch" placeholder="Search assets, trades, or anything...">
             </div>
             <div class="right-cluster">
-                <div class="mode-badge"><span class="dot on"></span> <span class="mode-badge-text">Paper Trading</span></div>
+                <div class="trading-mode-banner mode-paper" title="Every number in this app is simulated paper capital -- there is no live trading tier yet.">
+                    &#9679; <span class="mode-badge-text">Paper Trading</span>
+                </div>
                 <div class="icon-btn" title="{{ notification_summary or 'No new alerts' }}">
                     &#128276;
                     {% if notification_count %}<span class="badge-count">{{ notification_count }}</span>{% endif %}
@@ -64,6 +69,19 @@
                 <div class="clock" id="liveClock"></div>
             </div>
         </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div style="display:flex; flex-direction:column; gap:8px; padding:20px 32px 0; max-width:1600px; margin:0 auto; width:100%;">
+            {% for category, message in messages %}
+            <div class="health-banner {{ 'health-good' if category == 'success' else 'health-poor' }}" style="padding:12px 18px;">
+                <span class="health-dot"></span>
+                <span class="health-detail" style="color:var(--text); font-size:13px;">{{ message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
 
         <div class="content-wrap">
             {% block content %}{% endblock %}

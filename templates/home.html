@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
     .decision-buy { color: var(--green); }
     .decision-sell { color: var(--muted); }
     .book-chip { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+    .kpi-row-label {
+        font-size: var(--fs-micro); color: var(--muted-dim); text-transform: uppercase;
+        letter-spacing: 0.07em; margin: 4px 0 -4px; font-weight: 600;
+    }
 </style>
 {% endblock %}
 
@@ -16,47 +19,67 @@
         <img src="{{ url_for('static', filename='hero-full.png') }}" alt="Atlas AI — Autonomous trading for a brighter tomorrow">
     </div>
 
+    <div class="kpi-row-label">Simulated Capital &mdash; Financial Summary</div>
     <div class="hero-stats">
+        <a href="{{ url_for('wallet_page') }}" class="hero-stat glass kpi-primary" style="text-decoration:none; color:inherit;">
+            <div class="top-row">
+                <span class="label">Total Portfolio</span>
+                <div class="icon-tile" style="background:rgba(79,209,197,0.12); color:var(--accent);">&#128179;</div>
+            </div>
+            <div class="value-row"><span class="value">${{ "%.2f"|format(total_equity) }}</span></div>
+            <div class="sub-note">All books &middot; view wallet &rarr;</div>
+        </a>
         <div class="hero-stat glass">
             <div class="top-row">
-                <span class="label">Total Equity</span>
-                <div class="icon-tile" style="background:rgba(79,209,197,0.12); color:var(--accent);">&#9679;</div>
+                <span class="label">Available to Trade</span>
+                <div class="icon-tile" style="background:rgba(129,140,248,0.12); color:var(--indigo);">&#9679;</div>
             </div>
-            <div class="value-row">
-                <span class="value">${{ "%.2f"|format(total_equity) }}</span>
-                <canvas id="sparkEquity"></canvas>
-            </div>
+            <div class="value-row"><span class="value">${{ "%.2f"|format(total_available_cash) }}</span></div>
+            <div class="sub-note">Free cash across books</div>
         </div>
         <div class="hero-stat glass">
             <div class="top-row">
-                <span class="label">Total Return</span>
-                <div class="icon-tile" style="background:rgba(129,140,248,0.12); color:var(--indigo);">&#8644;</div>
+                <span class="label">In Positions</span>
+                <div class="icon-tile" style="background:rgba(251,146,60,0.12); color:var(--orange);">&#9776;</div>
             </div>
+            <div class="value-row"><span class="value">${{ "%.2f"|format(total_in_positions) }}</span></div>
+            <div class="sub-note">Currently deployed</div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row">
+                <span class="label">Today's P&amp;L</span>
+                <div class="icon-tile" style="background:rgba(74,222,128,0.12); color:var(--green);">&#128200;</div>
+            </div>
+            <div class="value-row"><span class="value {{ 'pos' if todays_pnl >= 0 else 'neg' }}">{{ "%+.2f"|format(todays_pnl) }}</span></div>
+            <div class="sub-note">Since today's day-start equity</div>
+        </div>
+    </div>
+
+    <div class="kpi-row-label">Performance</div>
+    <div class="hero-stats">
+        <div class="hero-stat glass">
+            <div class="top-row"><span class="label">Total Return</span></div>
             <div class="value-row">
                 <span class="value {{ 'pos' if total_return_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(total_return_pct) }}%</span>
                 <canvas id="sparkReturn"></canvas>
             </div>
         </div>
         <div class="hero-stat glass">
-            <div class="top-row">
-                <span class="label">Win Rate</span>
-                <div class="icon-tile" style="background:rgba(74,222,128,0.12); color:var(--green);">&#10003;</div>
-            </div>
+            <div class="top-row"><span class="label">Max Drawdown</span></div>
+            <div class="value-row"><span class="value">{{ "%.2f"|format(total_max_drawdown) }}%</span></div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row"><span class="label">Win Rate</span></div>
             <div class="value-row">
                 <span class="value">{{ "%.1f"|format(overall_win_rate) }}%</span>
                 <div class="ring-wrap"><canvas id="winRing"></canvas></div>
             </div>
-            <div style="font-size:11px; color:var(--muted);">{{ total_wins }}W / {{ total_losses }}L</div>
+            <div class="sub-note">{{ total_wins }}W / {{ total_losses }}L</div>
         </div>
         <div class="hero-stat glass">
-            <div class="top-row">
-                <span class="label">Open Positions</span>
-                <div class="icon-tile" style="background:rgba(251,146,60,0.12); color:var(--orange);">&#9776;</div>
-            </div>
-            <div class="value-row">
-                <span class="value">{{ total_open_positions }}</span>
-            </div>
-            <div style="font-size:11px; color:var(--muted);">across all books</div>
+            <div class="top-row"><span class="label">Open Positions</span></div>
+            <div class="value-row"><span class="value">{{ total_open_positions }}</span></div>
+            <div class="sub-note">across all books</div>
         </div>
     </div>
 
@@ -78,7 +101,7 @@
                 <span>Starting Balance <strong style="color:var(--text);">${{ "%.2f"|format(total_starting) }}</strong></span>
                 <span>Current Equity <strong class="{{ 'pos' if total_return_pct >= 0 else 'neg' }}">${{ "%.2f"|format(total_equity) }}</strong></span>
             </div>
-            <canvas id="equityChart" style="max-height:280px;"></canvas>
+            <div style="height:280px;"><canvas id="equityChart"></canvas></div>
         </div>
 
         <div class="panel glass">
@@ -201,7 +224,7 @@
                 <div class="value" style="font-size:14px;">{{ "%.0f"|format(market_signal.bearish_pct) }}%</div>
             </div>
         </div>
-        <div style="font-size:10.5px; color:var(--muted-dim); margin-top:10px; line-height:1.5;">
+        <div class="explain-note">
             Real technical read, not AI: % of {{ market_signal.sample_size }} scanned crypto pairs currently in a bullish EMA trend. The AI/News tier isn't live yet.
         </div>
         {% else %}
@@ -213,18 +236,24 @@
         <div class="section-title">System Status</div>
         <div class="status-line" style="margin-bottom:4px;">
             <span class="dot {{ 'on' if any_running else 'off' }}"></span>
-            <strong style="color:var(--text);">{{ "Bots Running" if any_running else "Bots Down" }}</strong>
-            <span style="color:var(--muted); margin-left:6px; font-size:11.5px;">Paper Trading Mode</span>
+            <strong style="color:var(--text);">{{ "Bot Engine Running" if any_running else "Bot Engine Down" }}</strong>
         </div>
+        <div class="status-row"><span>Mode</span><span class="val" style="color:var(--amber); font-weight:700;">Paper Trading (Simulated)</span></div>
         {% for key, meta in books_meta.items() %}
         {% set status = status_by_book[key] %}
         <div class="status-row">
-            <span><span class="dot {{ 'on' if status.state == 'running' else ('idle' if status.state == 'idle' else 'off') }}" style="margin-right:6px;"></span>{{ meta.label }}</span>
-            <span class="val">{{ status.state|capitalize }} &middot; {{ format_uptime(status.uptime_seconds) }}</span>
+            <span><span class="dot {{ 'on' if status.state == 'running' else ('idle' if status.state == 'idle' else 'off') }}" style="margin-right:6px;"></span>{{ meta.label }} Engine</span>
+            <span class="val">{{ status.state|capitalize }} &middot; up {{ format_uptime(status.uptime_seconds) }}</span>
+        </div>
+        <div class="status-row">
+            <span style="padding-left:15px;">{{ meta.label }} Feed</span>
+            <span class="val" style="color: {{ 'var(--green)' if connectivity_by_book[key] else 'var(--red)' }};">{{ "Connected" if connectivity_by_book[key] else "Disconnected" }}</span>
+        </div>
+        <div class="status-row">
+            <span style="padding-left:15px;">Last Trade</span>
+            <span class="val">{{ format_ago(status.last_trade) }}</span>
         </div>
         {% endfor %}
-        <div class="status-row"><span>Data Feed</span><span class="val" style="color:var(--green);">Connected</span></div>
-        <div class="status-row"><span>Exchange API</span><span class="val" style="color:var(--green);">Connected</span></div>
     </div>
 
     <div class="panel glass">
@@ -258,9 +287,9 @@
         <div class="section-title">Quick Actions</div>
         <div class="quick-actions-grid">
             <a class="btn" href="{{ url_for('home') }}">&#8635; Refresh</a>
+            <a class="btn" href="{{ url_for('wallet_page') }}">&#128179; Wallet</a>
             <a class="btn" href="{{ url_for('trade_history') }}">&#128203; Trade Log</a>
             <a class="btn" href="{{ url_for('analytics') }}">&#128202; Analytics</a>
-            <a class="btn" href="{{ url_for('settings') }}">&#9881; Settings</a>
         </div>
     </div>
 
@@ -276,44 +305,19 @@
         return data.filter(p => new Date(p.label.replace(" ", "T")) >= cutoff);
     }
 
-    const ctx = document.getElementById("equityChart");
-    let equityChart = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                borderColor: "#4fd1c5",
-                backgroundColor: "#4fd1c522",
-                fill: true,
-                pointRadius: 0,
-                borderWidth: 2,
-                tension: 0.15,
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { display: false },
-                y: { ticks: { color: "#8a99a8", font: { size: 10 } }, grid: { color: "#202b38" } }
-            }
-        }
-    });
-
-    function renderRange(days) {
-        const filtered = filterByDays(combinedCurve, days);
-        equityChart.data.labels = filtered.map(p => p.label);
-        equityChart.data.datasets[0].data = filtered.map(p => p.equity);
-        equityChart.update();
-    }
-    renderRange(7);
+    let equityChart = renderAtlasEquityChart("equityChart", filterByDays(combinedCurve, 7));
 
     document.querySelectorAll("#rangeToggle button").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll("#rangeToggle button").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            renderRange(parseInt(btn.dataset.range, 10));
+            const filtered = filterByDays(combinedCurve, parseInt(btn.dataset.range, 10));
+            const color = atlasTrendColor(filtered);
+            equityChart.data.labels = filtered.map(p => p.label);
+            equityChart.data.datasets[0].data = filtered.map(p => p.equity);
+            equityChart.data.datasets[0].borderColor = color;
+            equityChart.data.datasets[0].pointHoverBackgroundColor = color;
+            equityChart.update();
         });
     });
 
@@ -326,18 +330,8 @@
         });
     });
 
-    function sparkline(id, data, color) {
-        const c = document.getElementById(id);
-        if (!c) return;
-        new Chart(c, {
-            type: "line",
-            data: { labels: data.map((_, i) => i), datasets: [{ data, borderColor: color, borderWidth: 1.5, pointRadius: 0, tension: 0.3 }] },
-            options: { responsive: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
-        });
-    }
     const sparkData = combinedCurve.slice(-30).map(p => p.equity);
-    sparkline("sparkEquity", sparkData, "#4fd1c5");
-    sparkline("sparkReturn", sparkData, "#818cf8");
+    renderAtlasSparkline("sparkReturn", sparkData, "#818cf8");
 
     new Chart(document.getElementById("winRing"), {
         type: "doughnut",

@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ label }}{% endblock %}
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
     .decision-buy { color: var(--green); }
     .decision-sell { color: var(--muted); }
@@ -18,16 +17,29 @@
             <h1>{{ label }}</h1>
             <div class="tagline">{{ tagline }} &middot; {{ description }}</div>
         </div>
-        <span class="tier-tag {{ 'safe' if tier == 'Safe' else 'risk' }}">{{ tier }}</span>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="risk-badge {{ 'risk-safe' if tier == 'Safe' else 'risk-high' }}">Risk: {{ tier }}</span>
+            <div class="trading-mode-banner mode-paper" style="padding:8px 14px; font-size:11px;">&#9679; Paper Trading</div>
+        </div>
     </div>
 
     {% if book.ok %}
 
+    <div class="health-banner health-{{ health.status }}" style="margin-bottom:20px;">
+        <span class="health-dot"></span>
+        <div class="health-main">
+            <div class="health-title">Strategy Health: {{ health.title|upper }}</div>
+            <div class="health-detail">{{ health.detail }}</div>
+        </div>
+        <span class="dot {{ 'on' if connected else 'off' }}" title="{{ 'Exchange feed connected' if connected else 'Exchange feed unreachable' }}"></span>
+        <span style="font-size:11.5px; color:var(--muted);">{{ "Feed Connected" if connected else "Feed Disconnected" }}</span>
+    </div>
+
     <div class="panel glass" style="margin-bottom:20px;">
         <div class="stat-grid">
-            <div class="stat">
+            <div class="stat" style="background:linear-gradient(165deg, rgba(79,209,197,0.10), var(--panel-alt) 60%); border-color:rgba(79,209,197,0.25);">
                 <div class="label">Total Equity</div>
-                <div class="value">${{ "%.2f"|format(book.total_equity) }}</div>
+                <div class="value" style="font-size:22px;">${{ "%.2f"|format(book.total_equity) }}</div>
             </div>
             <div class="stat">
                 <div class="label">Total Return</div>
@@ -66,9 +78,48 @@
     </div>
 
     <div class="panel glass">
-        <div class="section-title">Equity Curve</div>
-        <canvas id="equityChart"></canvas>
+        <div class="section-title" style="justify-content:space-between;">
+            <span>Equity Curve</span>
+            <span class="seg-toggle" id="rangeToggle">
+                <button data-range="1">1D</button>
+                <button data-range="7">1W</button>
+                <button data-range="30" class="active">1M</button>
+                <button data-range="90">3M</button>
+                <button data-range="0">ALL</button>
+            </span>
+        </div>
+        <div style="height:280px;"><canvas id="equityChart"></canvas></div>
     </div>
+
+    {% if explanations %}
+    <div class="panel glass" style="margin-top:20px;">
+        <div class="section-title">Why The Bot Is Holding These Positions</div>
+        <div class="explain-note" style="margin-top:-8px; margin-bottom:14px;">
+            Live signal reading recomputed right now for each open position -- not a stored record of the exact conditions at original entry (that isn't logged), so this can differ slightly from why the trade first opened.
+        </div>
+        {% for ex in explanations %}
+        <div class="explain-card">
+            <div class="explain-header">
+                <span class="symbol">{{ ex.symbol }}</span>
+                <span class="decision-tag {{ 'buy' if ex.decision == 'BUY' else 'hold' }}">{{ ex.decision }}</span>
+            </div>
+            <div class="explain-confidence">Confidence: {{ ex.confidence }}%</div>
+            {% if ex.reasons %}
+            <ul class="explain-reasons">
+                {% for reason in ex.reasons %}
+                <li>{{ reason }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            <div class="explain-grid">
+                <div class="field"><div class="k">Price</div><div class="v">{{ "%.6g"|format(ex.price) }}</div></div>
+                <div class="field"><div class="k">ATR</div><div class="v">{{ "%.6g"|format(ex.atr) if ex.atr else "—" }}</div></div>
+                <div class="field"><div class="k">RSI</div><div class="v">{{ "%.1f"|format(ex.rsi) if ex.rsi == ex.rsi else "—" }}</div></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <div class="two-col" style="margin-top:20px;">
 
@@ -154,39 +205,32 @@
 
     <script>
         (function() {
-            const raw = {{ book.equity_curve|tojson }};
-            const ctx = document.getElementById("equityChart");
-            new Chart(ctx, {
-                type: "line",
-                data: {
-                    labels: raw.map(p => p.label),
-                    datasets: [{
-                        data: raw.map(p => p.equity),
-                        borderColor: "{{ color }}",
-                        backgroundColor: "{{ color }}22",
-                        fill: true,
-                        pointRadius: 0,
-                        borderWidth: 2,
-                        tension: 0.15,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { display: false },
-                        y: {
-                            ticks: { color: "#8a99a8", font: { size: 10 } },
-                            grid: { color: "#202b38" },
-                        }
-                    }
-                }
+            const rawCurve = {{ book.equity_curve|tojson }};
+
+            function filterByDays(data, days) {
+                if (!days || data.length === 0) return data;
+                const last = new Date(data[data.length - 1].label.replace(" ", "T"));
+                const cutoff = new Date(last.getTime() - days * 86400000);
+                return data.filter(p => new Date(p.label.replace(" ", "T")) >= cutoff);
+            }
+
+            let chart = renderAtlasEquityChart("equityChart", filterByDays(rawCurve, 30), { color: "{{ color }}" });
+
+            document.querySelectorAll("#rangeToggle button").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    document.querySelectorAll("#rangeToggle button").forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    const filtered = filterByDays(rawCurve, parseInt(btn.dataset.range, 10));
+                    chart.data.labels = filtered.map(p => p.label);
+                    chart.data.datasets[0].data = filtered.map(p => p.equity);
+                    chart.update();
+                });
             });
 
-            const buttons = document.querySelectorAll("#periodToggle button");
-            buttons.forEach(btn => {
+            const periodButtons = document.querySelectorAll("#periodToggle button");
+            periodButtons.forEach(btn => {
                 btn.addEventListener("click", () => {
-                    buttons.forEach(b => b.classList.remove("active"));
+                    periodButtons.forEach(b => b.classList.remove("active"));
                     btn.classList.add("active");
                     document.querySelectorAll('[id^="period-"]').forEach(t => t.hidden = true);
                     document.getElementById("period-" + btn.dataset.period).hidden = false;
