@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Atlas AI — {% block title %}Dashboard{% endblock %}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+
+<div class="app-shell">
+
+    <div class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">A</div>
+            <div class="brand-text">
+                <div class="name">ATLAS AI</div>
+                <div class="tagline">Trade smarter. Live brighter.</div>
+            </div>
+        </div>
+
+        <nav>
+            <a class="nav-item {{ 'active' if active_nav == 'dashboard' else '' }}" href="{{ url_for('home') }}"><span class="icon">&#9635;</span> Dashboard</a>
+            <a class="nav-item {{ 'active' if active_nav == 'crypto' else '' }}" href="{{ url_for('book_detail', key='crypto') }}"><span class="icon">&#9679;</span> Crypto</a>
+            <a class="nav-item {{ 'active' if active_nav == 'stocks' else '' }}" href="{{ url_for('book_detail', key='stocks') }}"><span class="icon">&#9650;</span> Stocks</a>
+            <a class="nav-item {{ 'active' if active_nav == 'meme' else '' }}" href="{{ url_for('book_detail', key='meme') }}"><span class="icon">&#9733;</span> Meme Coins</a>
+            <a class="nav-item {{ 'active' if active_nav == 'watchlist' else '' }}" href="{{ url_for('watchlist') }}"><span class="icon">&#128278;</span> Watchlist</a>
+
+            <div class="nav-section-label">Records</div>
+            <a class="nav-item {{ 'active' if active_nav == 'trade_history' else '' }}" href="{{ url_for('trade_history') }}"><span class="icon">&#8635;</span> Trade History</a>
+            <a class="nav-item {{ 'active' if active_nav == 'open_positions' else '' }}" href="{{ url_for('open_positions') }}"><span class="icon">&#9776;</span> Open Positions</a>
+            <a class="nav-item {{ 'active' if active_nav == 'performance' else '' }}" href="{{ url_for('performance') }}"><span class="icon">&#128200;</span> Performance</a>
+            <a class="nav-item {{ 'active' if active_nav == 'analytics' else '' }}" href="{{ url_for('analytics') }}"><span class="icon">&#8981;</span> Analytics</a>
+
+            <div class="nav-section-label">Other</div>
+            <a class="nav-item {{ 'active' if active_nav == 'news' else '' }}" href="{{ url_for('news_placeholder') }}"><span class="icon">&#10024;</span> AI Insights</a>
+            <a class="nav-item {{ 'active' if active_nav == 'settings' else '' }}" href="{{ url_for('settings') }}"><span class="icon">&#9881;</span> Settings</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="status-line"><span class="dot on"></span> Online &middot; Paper Trading</div>
+            <div class="quote">&ldquo;{{ footer_quote or "Discipline compounds tomorrow." }}&rdquo;<br>&mdash; Atlas AI</div>
+        </div>
+    </div>
+
+    <div class="main-area">
+
+        <div class="topbar">
+            <div class="search">
+                <span>&#128269;</span>
+                <input type="text" id="globalSearch" placeholder="Search assets, trades, or anything...">
+            </div>
+            <div class="right-cluster">
+                <div class="mode-badge"><span class="dot on"></span> Paper Trading</div>
+                <div class="icon-btn" title="{{ notification_summary or 'No new alerts' }}">
+                    &#128276;
+                    {% if notification_count %}<span class="badge-count">{{ notification_count }}</span>{% endif %}
+                </div>
+                <div class="user-chip">
+                    <div class="avatar">{{ (dashboard_username or "U")[0]|upper }}</div>
+                    <span style="font-size:13px;">Hello, {{ dashboard_username or "there" }}</span>
+                </div>
+                <div class="clock" id="liveClock"></div>
+            </div>
+        </div>
+
+        <div class="content-wrap">
+            {% block content %}{% endblock %}
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    function updateClock() {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+        const timeStr = now.toLocaleTimeString(undefined, { hour12: false });
+        const el = document.getElementById("liveClock");
+        if (el) el.innerHTML = dateStr + "<br>" + timeStr;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

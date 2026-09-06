@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+<div class="content-main" style="width:100%;">
+
+    <div class="detail-header">
+        <div>
+            <h1>Analytics</h1>
+            <div class="tagline">Exit-reason breakdown and top winners/losers per book</div>
+        </div>
+    </div>
+
+    <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));">
+        {% for key, meta in books_meta.items() %}
+        {% set a = per_book_analytics[key] %}
+        <div class="panel glass" style="--card-color: {{ meta.color }};">
+            <div class="section-title" style="justify-content:space-between;">
+                <span>{{ meta.label }}</span>
+                <span class="tier-tag {{ 'safe' if meta.tier == 'Safe' else 'risk' }}">{{ meta.tier }}</span>
+            </div>
+
+            <div class="stat-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:16px;">
+                <div class="stat"><div class="label">Closed Trades</div><div class="value">{{ a.closed_count }}</div></div>
+                <div class="stat"><div class="label">Win Rate</div><div class="value">{{ "%.1f"|format(a.win_rate) }}%</div></div>
+            </div>
+
+            <div class="section-title" style="font-size:11px;">Exit Reasons</div>
+            {% for reason, count in a.reason_counts.items() %}
+            <div class="perf-row">
+                <span class="name">{{ reason }}</span>
+                <span class="bar-track"><span class="bar-fill" style="width:{{ (count / a.closed_count * 100) if a.closed_count else 0 }}%; background:{{ meta.color }};"></span></span>
+                <span class="pct">{{ count }}</span>
+            </div>
+            {% else %}
+            <div style="color:var(--muted); font-size:12px; margin-bottom:10px;">No closed trades yet</div>
+            {% endfor %}
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px;">
+                <div>
+                    <div class="section-title" style="font-size:11px; color:var(--green);">Top Winners</div>
+                    <div class="table-wrap" style="max-height:180px;">
+                        <table>
+                            <tbody>
+                                {% for t in a.top_winners %}
+                                <tr><td>{{ t.symbol }}</td><td class="pos">{{ "%+.2f"|format(t.pnl) }}</td></tr>
+                                {% else %}<tr><td style="color:var(--muted);">—</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <div class="section-title" style="font-size:11px; color:var(--red);">Top Losers</div>
+                    <div class="table-wrap" style="max-height:180px;">
+                        <table>
+                            <tbody>
+                                {% for t in a.top_losers %}
+                                <tr><td>{{ t.symbol }}</td><td class="neg">{{ "%+.2f"|format(t.pnl) }}</td></tr>
+                                {% else %}<tr><td style="color:var(--muted);">—</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

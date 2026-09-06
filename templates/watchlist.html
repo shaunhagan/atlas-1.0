@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Watchlist{% endblock %}
+{% block content %}
+<div class="content-main" style="width:100%; max-width:700px;">
+
+    <div class="detail-header">
+        <div>
+            <h1>Watchlist</h1>
+            <div class="tagline">Symbols you're tracking manually, live prices via Binance</div>
+        </div>
+    </div>
+
+    <div class="panel glass" style="margin-bottom:20px;">
+        <form method="POST" action="{{ url_for('watchlist') }}" style="display:flex; gap:10px;">
+            <input type="text" name="symbol" placeholder="e.g. BTC/USDT" required
+                style="flex:1; padding:11px 14px; border-radius:8px; border:1px solid var(--border); background:var(--panel-alt); color:var(--text); font-size:14px;">
+            <button type="submit" class="btn" style="width:auto; padding:11px 22px;">Add</button>
+        </form>
+    </div>
+
+    <div class="panel glass">
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Symbol</th><th>Price</th><th>24h Change</th><th></th></tr></thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>{{ row.symbol }}</td>
+                        <td>{{ "%.6f"|format(row.price) if row.price else "not found" }}</td>
+                        <td class="{{ 'pos' if row.change_pct and row.change_pct >= 0 else 'neg' if row.change_pct else '' }}">
+                            {{ "%+.2f"|format(row.change_pct) + "%" if row.change_pct is not none else "—" }}
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('watchlist_remove', symbol=row.symbol) }}" style="margin:0;">
+                                <button type="submit" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:12px;">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" style="color:var(--muted);">Nothing on your watchlist yet &mdash; add a Binance symbol above (e.g. SOL/USDT)</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

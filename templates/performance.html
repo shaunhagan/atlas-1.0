@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Performance{% endblock %}
+{% block head %}
+<style>
+    .book-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .book-tab {
+        padding: 9px 18px; border-radius: 999px; border: 1px solid var(--border);
+        color: var(--muted); cursor: pointer; font-size: 13px; background: transparent;
+    }
+    .book-tab.active { color: var(--text); border-color: var(--tab-color, var(--accent)); background: color-mix(in srgb, var(--tab-color, var(--accent)) 12%, transparent); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="content-main" style="width:100%;">
+
+    <div class="detail-header">
+        <div>
+            <h1>Performance</h1>
+            <div class="tagline">Daily, monthly, and annual P&amp;L per book</div>
+        </div>
+    </div>
+
+    <div class="book-tabs">
+        {% for key, meta in books_meta.items() %}
+        <button class="book-tab {{ 'active' if loop.first else '' }}" style="--tab-color: {{ meta.color }};" data-book="{{ key }}">{{ meta.label }}</button>
+        {% endfor %}
+    </div>
+
+    {% for key, meta in books_meta.items() %}
+    <div class="perf-page-block" data-book-block="{{ key }}" {% if not loop.first %}hidden{% endif %}>
+        <div class="two-col" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;">
+            <div class="panel glass">
+                <div class="section-title">Daily (last 30)</div>
+                <div class="table-wrap" style="max-height:400px;">
+                    <table>
+                        <thead><tr><th>Date</th><th>P&amp;L</th><th>%</th></tr></thead>
+                        <tbody>
+                            {% for row in per_book_periods[key].daily %}
+                            <tr><td>{{ row.period }}</td><td class="{{ 'pos' if row.pnl >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl) }}</td><td class="{{ 'pos' if row.pnl_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl_pct) }}%</td></tr>
+                            {% else %}<tr><td colspan="3" style="color:var(--muted);">No data</td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="panel glass">
+                <div class="section-title">Monthly</div>
+                <div class="table-wrap" style="max-height:400px;">
+                    <table>
+                        <thead><tr><th>Month</th><th>P&amp;L</th><th>%</th></tr></thead>
+                        <tbody>
+                            {% for row in per_book_periods[key].monthly %}
+                            <tr><td>{{ row.period }}</td><td class="{{ 'pos' if row.pnl >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl) }}</td><td class="{{ 'pos' if row.pnl_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl_pct) }}%</td></tr>
+                            {% else %}<tr><td colspan="3" style="color:var(--muted);">No data</td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="panel glass">
+                <div class="section-title">Annual</div>
+                <div class="table-wrap" style="max-height:400px;">
+                    <table>
+                        <thead><tr><th>Year</th><th>P&amp;L</th><th>%</th></tr></thead>
+                        <tbody>
+                            {% for row in per_book_periods[key].annual %}
+                            <tr><td>{{ row.period }}</td><td class="{{ 'pos' if row.pnl >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl) }}</td><td class="{{ 'pos' if row.pnl_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl_pct) }}%</td></tr>
+                            {% else %}<tr><td colspan="3" style="color:var(--muted);">No data</td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+</div>
+<script>
+    document.querySelectorAll(".book-tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+            document.querySelectorAll(".book-tab").forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+            document.querySelectorAll("[data-book-block]").forEach(el => el.hidden = true);
+            document.querySelector('[data-book-block="' + tab.dataset.book + '"]').hidden = false;
+        });
+    });
+</script>
+{% endblock %}

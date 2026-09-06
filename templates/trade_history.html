@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Trade History{% endblock %}
+{% block head %}
+<style>
+    .decision-buy { color: var(--green); }
+    .decision-sell { color: var(--muted); }
+    .filter-row { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="content-main" style="width:100%;">
+
+    <div class="detail-header">
+        <div>
+            <h1>Trade History</h1>
+            <div class="tagline">Every trade placed across all books, newest first &mdash; {{ trades|length }} entries</div>
+        </div>
+    </div>
+
+    <div class="filter-row">
+        <a class="pill-link {{ 'active' if not book_filter else '' }}" style="{{ 'border-color: var(--accent); color: var(--text);' if not book_filter else '' }}" href="{{ url_for('trade_history') }}">All Books</a>
+        {% for key, meta in books_meta.items() %}
+        <a class="pill-link" style="{{ 'border-color: ' + meta.color + '; color: var(--text);' if book_filter == key else '' }}" href="{{ url_for('trade_history', book=key) }}">{{ meta.label }}</a>
+        {% endfor %}
+    </div>
+
+    <div class="panel glass">
+        <div class="table-wrap" style="max-height:70vh;">
+            <table>
+                <thead><tr><th>Date</th><th>Time</th><th>Book</th><th>Symbol</th><th>Action</th><th>Price</th><th>Exit Reason</th><th>P&amp;L</th></tr></thead>
+                <tbody>
+                    {% for trade in trades %}
+                    <tr>
+                        <td>{{ trade.date }}</td>
+                        <td>{{ trade.time }}</td>
+                        <td><span class="book-chip" style="border-color:{{ books_meta[trade.book_key].color }}44;">{{ trade.book }}</span></td>
+                        <td>{{ trade.symbol }}</td>
+                        <td class="{{ 'decision-buy' if trade.decision == 'BUY' else 'decision-sell' }}">{{ trade.decision }}</td>
+                        <td>{{ trade.price }}</td>
+                        <td>{{ trade.reason or "—" }}</td>
+                        <td class="{{ 'pos' if trade.pnl and trade.pnl >= 0 else 'neg' if trade.pnl else '' }}">
+                            {{ "%+.2f"|format(trade.pnl) if trade.pnl is not none else "—" }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" style="color:var(--muted);">No trades yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

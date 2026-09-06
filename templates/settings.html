@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="content-main" style="width:100%;">
+
+    <div class="detail-header">
+        <div>
+            <h1>Settings</h1>
+            <div class="tagline">Live configuration per book &mdash; read-only (changing strategy settings goes through backtest validation first, not this page)</div>
+        </div>
+    </div>
+
+    <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+        {% for key, meta in books_meta.items() %}
+        <div class="panel glass">
+            <div class="section-title" style="justify-content:space-between;">
+                <span>{{ meta.label }}</span>
+                <span class="tier-tag {{ 'safe' if meta.tier == 'Safe' else 'risk' }}">{{ meta.tier }}</span>
+            </div>
+            {% for name, value in settings_by_book[key].items() %}
+            <div class="status-row">
+                <span>{{ name }}</span>
+                <span class="val">{{ value }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

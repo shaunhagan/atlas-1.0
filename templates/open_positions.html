@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Open Positions{% endblock %}
+{% block content %}
+<div class="content-main" style="width:100%;">
+
+    <div class="detail-header">
+        <div>
+            <h1>Open Positions</h1>
+            <div class="tagline">{{ positions|length }} positions currently open across all books</div>
+        </div>
+    </div>
+
+    <div class="panel glass">
+        <div class="table-wrap" style="max-height:70vh;">
+            <table>
+                <thead><tr><th>Book</th><th>Symbol</th><th>Entry</th><th>Qty</th><th>Stop Loss</th><th>Take Profit</th></tr></thead>
+                <tbody>
+                    {% for pos in positions %}
+                    <tr>
+                        <td><span class="book-chip" style="border-color:{{ books_meta[pos.book_key].color }}44;">{{ pos.book }}</span></td>
+                        <td>{{ pos.symbol }}</td>
+                        <td>{{ "%.6f"|format(pos.entry_price) }}</td>
+                        <td>{{ "%.4f"|format(pos.quantity) }}</td>
+                        <td>{{ "%.6f"|format(pos.stop_loss) if pos.stop_loss else "—" }}</td>
+                        <td>{{ "%.6f"|format(pos.take_profit) if pos.take_profit else "—" }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" style="color:var(--muted);">No open positions</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -10,16 +10,19 @@ files report.py/stock_report.py already read -- no separate data
 layer, no risk of showing something different from what those CLI
 reports say.
 
-Structure: a landing page with one card per book (Crypto, Stocks,
-Meme Coins, and a not-yet-live AI/News section), each linking to its
-own deep-dive page with the full trade history and daily/monthly/
-annual breakdowns -- not a single page trying to show everything at
-once. Books stay independently rendered, matching how the underlying
-systems are actually kept separate.
+Sidebar-navigated multi-page layout: a combined "Dashboard" home page
+(cross-book totals, system status, market movers), per-book deep-dive
+pages, and dedicated Trade History / Open Positions / Performance /
+Analytics / Watchlist / Settings pages. Every number here is real,
+derived from actual logs/config or a live exchange call -- nothing
+fabricated (see dashboard_data.get_market_signal()'s docstring for
+why the "AI sentiment"-shaped widget is a real technical read, not AI).
 """
 
+import json
 import os
 from functools import wraps
+from pathlib import Path
 
 from flask import (
     Flask,
@@ -33,16 +36,20 @@ from flask import (
 )
 from dotenv import load_dotenv
 
+import config
 import portfolio
 import report
+import exchange as crypto_exchange
 
 import stock_portfolio
 import stock_report
+import stock_scanner
 
 import meme_portfolio
 import meme_report
 
 import report_utils
+import dashboard_data
 
 
 load_dotenv()
@@ -57,6 +64,15 @@ DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")
 EQUITY_CURVE_POINT_LIMIT = 500
 
 RECENT_TRADES_LIMIT = 20
+
+WATCHLIST_FILE = Path("data") / "watchlist.json"
+
+FOOTER_QUOTES = [
+    "Discipline compounds tomorrow.",
+    "Validate, then trust.",
+    "The backtest is the argument.",
+    "No excuses, no shortcuts.",
+]
 
 
 BOOKS = {
@@ -73,6 +89,8 @@ BOOKS = {
         ),
         "portfolio_module": portfolio,
         "report_module": report,
+        "scan_interval": config.SCAN_INTERVAL,
+        "is_market_open_fn": None,
     },
     "stocks": {
         "label": "Stocks",
@@ -87,6 +105,8 @@ BOOKS = {
         ),
         "portfolio_module": stock_portfolio,
         "report_module": stock_report,
+        "scan_interval": config.STOCK_SCAN_INTERVAL,
+        "is_market_open_fn": lambda: stock_scanner.is_market_open()[0],
     },
     "meme": {
         "label": "Meme Coins",
@@ -100,8 +120,13 @@ BOOKS = {
         ),
         "portfolio_module": meme_portfolio,
         "report_module": meme_report,
+        "scan_interval": config.MEME_SCAN_INTERVAL,
+        "is_market_open_fn": None,
     },
 }
+
+BOOK_DEFS_TRADES = [(k, m["label"], m["report_module"]) for k, m in BOOKS.items()]
+BOOK_DEFS_POSITIONS = [(k, m["label"], m["portfolio_module"]) for k, m in BOOKS.items()]
 
 
 # ============================================================
@@ -156,6 +181,31 @@ def logout():
 
 
 # ============================================================
+# SHARED TEMPLATE CONTEXT -- every page that extends base.html
+# gets these automatically, so routes don't repeat them.
+# ============================================================
+
+@app.context_processor
+def inject_shell_context():
+
+    try:
+        notifications = dashboard_data.get_notifications(BOOK_DEFS_TRADES, lookback_hours=24, limit=8)
+    except Exception:
+        notifications = []
+
+    import random
+
+    return {
+        "dashboard_username": DASHBOARD_USERNAME,
+        "notification_count": len(notifications),
+        "notification_summary": (
+            f"{len(notifications)} events in the last 24h" if notifications else "No new alerts"
+        ),
+        "footer_quote": random.choice(FOOTER_QUOTES),
+    }
+
+
+# ============================================================
 # DATA LAYER -- reuses report.py / stock_report.py / report_utils.py
 # ============================================================
 
@@ -163,9 +213,7 @@ def _book_summary(portfolio_module, report_module):
     """
     Same numbers report.py/stock_report.py print on the CLI, reused
     directly rather than re-derived, so the dashboard can never
-    silently disagree with `python report.py`. Used for the landing
-    page cards (a quick-glance stat) and as the base for the detail
-    page.
+    silently disagree with `python report.py`.
     """
 
     try:
@@ -277,30 +325,105 @@ def _book_detail(portfolio_module, report_module):
 
 
 # ============================================================
-# ROUTES
+# ROUTES -- main dashboard
 # ============================================================
 
 @app.route("/")
 @login_required
 def home():
 
-    cards = []
+    per_book = {}
 
     for key, meta in BOOKS.items():
+        per_book[key] = _book_summary(meta["portfolio_module"], meta["report_module"])
 
-        summary = _book_summary(meta["portfolio_module"], meta["report_module"])
+    ok_books = [b for b in per_book.values() if b["ok"]]
 
-        cards.append({
-            "key": key,
-            "label": meta["label"],
-            "color": meta["color"],
-            "tier": meta["tier"],
-            "tagline": meta["tagline"],
-            "description": meta["description"],
-            "summary": summary,
-        })
+    total_equity = sum(b["total_equity"] for b in ok_books)
+    total_starting = sum(b["starting_balance"] for b in ok_books)
+    total_return_pct = (total_equity / total_starting - 1) * 100 if total_starting else 0.0
 
-    return render_template("home.html", cards=cards)
+    total_realised = sum(b["realised_pnl"] for b in ok_books)
+    total_unrealised = total_equity - total_starting - total_realised if total_starting else 0.0
+
+    total_wins = sum(b["wins"] for b in ok_books)
+    total_losses = sum(b["losses"] for b in ok_books)
+    total_closed = total_wins + total_losses
+    overall_win_rate = (total_wins / total_closed * 100) if total_closed else 0.0
+
+    total_open_positions = sum(len(b["open_positions"]) for b in per_book.values() if b["ok"])
+
+    all_pnls = []
+    for key, meta in BOOKS.items():
+        trades = meta["report_module"].load_trades()
+        closed, _, _ = meta["report_module"].summarise_trades(trades)
+        all_pnls.extend(t["pnl"] for t in closed)
+
+    avg_trade_size = (sum(abs(p) for p in all_pnls) / len(all_pnls)) if all_pnls else 0.0
+
+    combined_curve = dashboard_data.combined_equity_curve(
+        [(k, m["label"], m["report_module"]) for k, m in BOOKS.items()],
+        point_limit=EQUITY_CURVE_POINT_LIMIT,
+    )
+
+    performance_periods = {}
+    for period in ("day", "week", "month", "year"):
+        rows = {}
+        for key, meta in BOOKS.items():
+            equity_rows = meta["report_module"].load_equity_curve()
+            grouped = report_utils.group_by_period(
+                equity_rows, "day" if period == "week" else period,
+            )
+            rows[key] = grouped[-1]["pnl_pct"] if grouped else 0.0
+        rows["overall"] = sum(rows.values()) / len(rows) if rows else 0.0
+        performance_periods[period] = rows
+
+    status_by_book = {}
+    for key, meta in BOOKS.items():
+        status_by_book[key] = dashboard_data.get_system_status(
+            meta["report_module"].TRADE_LOG,
+            meta["scan_interval"],
+            meta["is_market_open_fn"],
+        )
+
+    any_running = any(s["running"] for s in status_by_book.values())
+
+    movers = dashboard_data.get_top_movers(crypto_exchange.exchange)
+
+    market_signal = dashboard_data.get_market_signal(crypto_exchange.exchange)
+
+    recent_trades = dashboard_data.combined_trades(BOOK_DEFS_TRADES, limit=RECENT_TRADES_LIMIT)
+    open_positions = dashboard_data.combined_open_positions(BOOK_DEFS_POSITIONS)
+    notifications = dashboard_data.get_notifications(BOOK_DEFS_TRADES, limit=8)
+
+    return render_template(
+        "home.html",
+        active_nav="dashboard",
+        per_book=per_book,
+        books_meta=BOOKS,
+        total_equity=total_equity,
+        total_starting=total_starting,
+        total_return_pct=total_return_pct,
+        total_realised=total_realised,
+        total_unrealised=total_unrealised,
+        overall_win_rate=overall_win_rate,
+        total_wins=total_wins,
+        total_losses=total_losses,
+        total_closed=total_closed,
+        total_open_positions=total_open_positions,
+        avg_trade_size=avg_trade_size,
+        combined_curve=combined_curve,
+        performance_periods=performance_periods,
+        status_by_book=status_by_book,
+        any_running=any_running,
+        movers=movers,
+        market_signal=market_signal,
+        recent_trades=recent_trades,
+        open_positions=open_positions,
+        notifications=notifications,
+        format_uptime=dashboard_data.format_uptime,
+        format_ago=dashboard_data.format_ago,
+    )
 
 
 @app.route("/book/<key>")
@@ -316,6 +439,7 @@ def book_detail(key):
 
     return render_template(
         "book_detail.html",
+        active_nav=key,
         key=key,
         label=meta["label"],
         color=meta["color"],
@@ -326,12 +450,230 @@ def book_detail(key):
     )
 
 
+@app.route("/trade-history")
+@login_required
+def trade_history():
+
+    book_filter = request.args.get("book")
+
+    trades = dashboard_data.combined_trades(BOOK_DEFS_TRADES)
+
+    if book_filter:
+        trades = [t for t in trades if t["book_key"] == book_filter]
+
+    return render_template(
+        "trade_history.html",
+        active_nav="trade_history",
+        trades=trades,
+        books_meta=BOOKS,
+        book_filter=book_filter,
+    )
+
+
+@app.route("/open-positions")
+@login_required
+def open_positions():
+
+    positions = dashboard_data.combined_open_positions(BOOK_DEFS_POSITIONS)
+
+    return render_template(
+        "open_positions.html",
+        active_nav="open_positions",
+        positions=positions,
+        books_meta=BOOKS,
+    )
+
+
+@app.route("/performance")
+@login_required
+def performance():
+
+    per_book_periods = {}
+
+    for key, meta in BOOKS.items():
+
+        equity_rows = meta["report_module"].load_equity_curve()
+
+        per_book_periods[key] = {
+            "daily": list(reversed(report_utils.group_by_period(equity_rows, "day")))[:30],
+            "monthly": list(reversed(report_utils.group_by_period(equity_rows, "month"))),
+            "annual": list(reversed(report_utils.group_by_period(equity_rows, "year"))),
+        }
+
+    return render_template(
+        "performance.html",
+        active_nav="performance",
+        books_meta=BOOKS,
+        per_book_periods=per_book_periods,
+    )
+
+
+@app.route("/analytics")
+@login_required
+def analytics():
+
+    per_book_analytics = {}
+
+    for key, meta in BOOKS.items():
+
+        trades = meta["report_module"].load_trades()
+        closed, wins, losses = meta["report_module"].summarise_trades(trades)
+
+        reason_counts = {}
+        for trade in closed:
+            reason_counts[trade["reason"]] = reason_counts.get(trade["reason"], 0) + 1
+
+        ranked = sorted(closed, key=lambda t: t["pnl"], reverse=True)
+
+        per_book_analytics[key] = {
+            "closed_count": len(closed),
+            "win_rate": (len(wins) / len(closed) * 100) if closed else 0.0,
+            "reason_counts": reason_counts,
+            "top_winners": ranked[:5],
+            "top_losers": ranked[-5:][::-1] if closed else [],
+        }
+
+    return render_template(
+        "analytics.html",
+        active_nav="analytics",
+        books_meta=BOOKS,
+        per_book_analytics=per_book_analytics,
+    )
+
+
+@app.route("/settings")
+@login_required
+def settings():
+
+    settings_by_book = {
+        "crypto": {
+            "Exchange": config.EXCHANGE, "Timeframe": config.TIMEFRAME,
+            "Scan Limit": config.SCAN_LIMIT, "Scan Interval (s)": config.SCAN_INTERVAL,
+            "Risk / Trade": f"{config.RISK_PER_TRADE * 100:.1f}%",
+            "ATR Stop Multiplier": config.ATR_STOP_MULTIPLIER,
+            "Risk:Reward": config.RISK_REWARD_RATIO,
+            "Max Open Trades": config.MAX_OPEN_TRADES,
+            "Daily Loss Limit": f"{config.DAILY_LOSS_LIMIT_PCT:.1f}%",
+            "Min Confidence": config.MIN_CONFIDENCE,
+        },
+        "stocks": {
+            "Timeframe (min)": config.STOCK_TIMEFRAME_MINUTES, "Scan Limit": config.STOCK_SCAN_LIMIT,
+            "Scan Interval (s)": config.STOCK_SCAN_INTERVAL,
+            "Risk / Trade": f"{config.STOCK_RISK_PER_TRADE * 100:.1f}%",
+            "ATR Stop Multiplier": config.STOCK_ATR_STOP_MULTIPLIER,
+            "Risk:Reward": config.STOCK_RISK_REWARD_RATIO,
+            "Max Open Trades": config.STOCK_MAX_OPEN_TRADES,
+            "Strategy": "Bollinger Band + RSI mean reversion",
+            "Bollinger Period / StdDev": f"{config.BOLLINGER_PERIOD} / {config.BOLLINGER_STDDEV}",
+            "RSI Oversold": config.MEANREV_RSI_OVERSOLD,
+        },
+        "meme": {
+            "Scan Limit": config.MEME_SCAN_LIMIT, "Scan Interval (s)": config.MEME_SCAN_INTERVAL,
+            "Risk / Trade": f"{config.MEME_RISK_PER_TRADE * 100:.1f}%",
+            "ATR Stop Multiplier": config.MEME_ATR_STOP_MULTIPLIER,
+            "Min Stop Distance": f"{config.MEME_MIN_STOP_DISTANCE_PCT:.2f}%",
+            "Risk:Reward": config.MEME_RISK_REWARD_RATIO,
+            "Max Open Trades": config.MEME_MAX_OPEN_TRADES,
+            "Daily Loss Limit": f"{config.MEME_DAILY_LOSS_LIMIT_PCT:.1f}%",
+            "Min Confidence": config.MEME_MIN_CONFIDENCE,
+        },
+    }
+
+    return render_template(
+        "settings.html",
+        active_nav="settings",
+        settings_by_book=settings_by_book,
+        books_meta=BOOKS,
+    )
+
+
 @app.route("/news")
 @login_required
 def news_placeholder():
 
-    return render_template("news_placeholder.html")
+    return render_template("news_placeholder.html", active_nav="news")
 
+
+# ============================================================
+# WATCHLIST -- a small real feature: persisted symbol list + live
+# prices, stored locally since this project has no database.
+# ============================================================
+
+def _load_watchlist():
+
+    if not WATCHLIST_FILE.exists():
+        return []
+
+    try:
+        with open(WATCHLIST_FILE, "r", encoding="utf-8") as file:
+            return json.load(file).get("symbols", [])
+    except Exception:
+        return []
+
+
+def _save_watchlist(symbols):
+
+    WATCHLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(WATCHLIST_FILE, "w", encoding="utf-8") as file:
+        json.dump({"symbols": symbols}, file, indent=2)
+
+
+@app.route("/watchlist", methods=["GET", "POST"])
+@login_required
+def watchlist():
+
+    if request.method == "POST":
+
+        symbol = request.form.get("symbol", "").strip().upper()
+
+        if symbol:
+
+            symbols = _load_watchlist()
+
+            if symbol not in symbols:
+                symbols.append(symbol)
+                _save_watchlist(symbols)
+
+        return redirect(url_for("watchlist"))
+
+    symbols = _load_watchlist()
+
+    rows = []
+
+    try:
+        tickers = crypto_exchange.exchange.exchange.fetch_tickers()
+    except Exception:
+        tickers = {}
+
+    for symbol in symbols:
+
+        data = tickers.get(symbol)
+
+        rows.append({
+            "symbol": symbol,
+            "price": data.get("last") if data else None,
+            "change_pct": data.get("percentage") if data else None,
+            "found": data is not None,
+        })
+
+    return render_template("watchlist.html", active_nav="watchlist", rows=rows)
+
+
+@app.route("/watchlist/remove/<path:symbol>", methods=["POST"])
+@login_required
+def watchlist_remove(symbol):
+
+    symbols = [s for s in _load_watchlist() if s != symbol]
+
+    _save_watchlist(symbols)
+
+    return redirect(url_for("watchlist"))
+
+
+# ============================================================
+# JSON APIs (kept for external/API use)
+# ============================================================
 
 @app.route("/api/crypto")
 @login_required

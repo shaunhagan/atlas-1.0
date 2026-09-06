@@ -1,90 +1,362 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Atlas AI — Overview</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
-    .hero {
-        padding: 30px 4px 8px;
-        margin-bottom: 8px;
-    }
-    .hero h1 {
-        font-size: 34px;
-        margin: 0 0 8px;
-        letter-spacing: -0.01em;
-    }
-    .hero p {
-        color: var(--muted);
-        font-size: 14.5px;
-        max-width: 560px;
-        line-height: 1.6;
-        margin: 0;
-    }
+    .decision-buy { color: var(--green); }
+    .decision-sell { color: var(--muted); }
+    .book-chip { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
 </style>
-</head>
-<body>
+{% endblock %}
 
-<div class="topnav">
-    <div class="brand">
-        <span class="mark">ATLAS AI</span>
-        <span class="sub">Trading Command Center</span>
+{% block content %}
+<div class="content-main">
+
+    <div class="hero-banner glass">
+        <div>
+            <div class="eyebrow">Welcome back, {{ dashboard_username or "trader" }}</div>
+            <h1>Autonomous trading<br>for a brighter tomorrow.</h1>
+            <div class="sub">AI-powered. Data-driven. Emotion-free.</div>
+        </div>
+        <div class="quote-block">
+            &ldquo;Better data. Better decisions. A brighter tomorrow.&rdquo;
+            <div class="attribution">&mdash; Atlas AI</div>
+        </div>
     </div>
-    <div class="links">
-        <a class="pill-link" href="{{ url_for('logout') }}">Log out</a>
+
+    <div class="hero-stats">
+        <div class="hero-stat glass">
+            <div class="top-row">
+                <span class="label">Total Equity</span>
+                <div class="icon-tile" style="background:rgba(79,209,197,0.12); color:var(--accent);">&#9679;</div>
+            </div>
+            <div class="value-row">
+                <span class="value">${{ "%.2f"|format(total_equity) }}</span>
+                <canvas id="sparkEquity"></canvas>
+            </div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row">
+                <span class="label">Total Return</span>
+                <div class="icon-tile" style="background:rgba(129,140,248,0.12); color:var(--indigo);">&#8644;</div>
+            </div>
+            <div class="value-row">
+                <span class="value {{ 'pos' if total_return_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(total_return_pct) }}%</span>
+                <canvas id="sparkReturn"></canvas>
+            </div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row">
+                <span class="label">Win Rate</span>
+                <div class="icon-tile" style="background:rgba(74,222,128,0.12); color:var(--green);">&#10003;</div>
+            </div>
+            <div class="value-row">
+                <span class="value">{{ "%.1f"|format(overall_win_rate) }}%</span>
+                <div class="ring-wrap"><canvas id="winRing"></canvas></div>
+            </div>
+            <div style="font-size:11px; color:var(--muted);">{{ total_wins }}W / {{ total_losses }}L</div>
+        </div>
+        <div class="hero-stat glass">
+            <div class="top-row">
+                <span class="label">Open Positions</span>
+                <div class="icon-tile" style="background:rgba(251,146,60,0.12); color:var(--orange);">&#9776;</div>
+            </div>
+            <div class="value-row">
+                <span class="value">{{ total_open_positions }}</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted);">across all books</div>
+        </div>
     </div>
+
+    <div class="two-col" style="display:grid; grid-template-columns: 1.4fr 1fr; gap:20px; align-items:start;">
+
+        <div class="panel glass">
+            <div class="section-title" style="justify-content:space-between;">
+                <span>Equity Curve</span>
+                <span class="seg-toggle" id="rangeToggle">
+                    <button data-range="1">1D</button>
+                    <button data-range="7" class="active">1W</button>
+                    <button data-range="30">1M</button>
+                    <button data-range="90">3M</button>
+                    <button data-range="365">1Y</button>
+                    <button data-range="0">ALL</button>
+                </span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-bottom:10px;">
+                <span>Starting Balance <strong style="color:var(--text);">${{ "%.2f"|format(total_starting) }}</strong></span>
+                <span>Current Equity <strong class="{{ 'pos' if total_return_pct >= 0 else 'neg' }}">${{ "%.2f"|format(total_equity) }}</strong></span>
+            </div>
+            <canvas id="equityChart" style="max-height:280px;"></canvas>
+        </div>
+
+        <div class="panel glass">
+            <div class="section-title" style="justify-content:space-between;">
+                <span>Performance by Book</span>
+                <span class="seg-toggle" id="perfToggle">
+                    <button data-period="day" class="active">Day</button>
+                    <button data-period="week">Week</button>
+                    <button data-period="month">Month</button>
+                    <button data-period="year">Year</button>
+                </span>
+            </div>
+            {% for period, rows in performance_periods.items() %}
+            <div class="perf-block" data-perf-period="{{ period }}" {% if period != 'day' %}hidden{% endif %}>
+                {% for key, meta in books_meta.items() %}
+                {% set pct = rows.get(key, 0.0) %}
+                <div class="perf-row">
+                    <span class="name">{{ meta.label }}</span>
+                    <span class="bar-track"><span class="bar-fill" style="width:{{ [pct|abs * 8, 100]|min }}%; background:{{ '#4ade80' if pct >= 0 else '#f87171' }};"></span></span>
+                    <span class="pct {{ 'pos' if pct >= 0 else 'neg' }}">{{ "%+.2f"|format(pct) }}%</span>
+                </div>
+                {% endfor %}
+                {% set overall = rows.get('overall', 0.0) %}
+                <div class="perf-row" style="border-top:1px solid var(--border); margin-top:4px; padding-top:12px;">
+                    <span class="name" style="font-weight:600;">Overall</span>
+                    <span class="bar-track"><span class="bar-fill" style="width:{{ [overall|abs * 8, 100]|min }}%; background:{{ '#4ade80' if overall >= 0 else '#f87171' }};"></span></span>
+                    <span class="pct {{ 'pos' if overall >= 0 else 'neg' }}">{{ "%+.2f"|format(overall) }}%</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+
+    <div class="mini-stat-row">
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(129,140,248,0.12); color:var(--indigo);">&#8942;</div><div><div class="label">Total Trades</div><div class="value">{{ total_closed }}</div></div></div>
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(74,222,128,0.12); color:var(--green);">&#127942;</div><div><div class="label">Winning Trades</div><div class="value">{{ total_wins }}</div></div></div>
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(248,113,113,0.12); color:var(--red);">&#10007;</div><div><div class="label">Losing Trades</div><div class="value">{{ total_losses }}</div></div></div>
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(79,209,197,0.12); color:var(--accent);">&#128176;</div><div><div class="label">Realised P&amp;L</div><div class="value {{ 'pos' if total_realised >= 0 else 'neg' }}">{{ "%+.2f"|format(total_realised) }}</div></div></div>
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(251,191,36,0.12); color:var(--amber);">&#128200;</div><div><div class="label">Unrealised P&amp;L</div><div class="value {{ 'pos' if total_unrealised >= 0 else 'neg' }}">{{ "%+.2f"|format(total_unrealised) }}</div></div></div>
+        <div class="mini-stat glass"><div class="icon-tile" style="background:rgba(129,140,248,0.12); color:var(--indigo);">&#9878;</div><div><div class="label">Avg Trade Size</div><div class="value">${{ "%.2f"|format(avg_trade_size) }}</div></div></div>
+    </div>
+
+    <div class="two-col" style="display:grid; grid-template-columns: 1.3fr 1fr; gap:20px; align-items:start;">
+
+        <div class="panel glass">
+            <div class="section-title" style="justify-content:space-between;">
+                <span>Recent Trades</span>
+                <a class="pill-link" style="font-size:11.5px; padding:5px 12px;" href="{{ url_for('trade_history') }}">View All &rarr;</a>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Date</th><th>Time</th><th>Book</th><th>Symbol</th><th>Action</th><th>Price</th><th>P&amp;L</th></tr></thead>
+                    <tbody>
+                        {% for trade in recent_trades %}
+                        <tr>
+                            <td>{{ trade.date }}</td>
+                            <td>{{ trade.time }}</td>
+                            <td><span class="book-chip">{{ trade.book }}</span></td>
+                            <td>{{ trade.symbol }}</td>
+                            <td class="{{ 'decision-buy' if trade.decision == 'BUY' else 'decision-sell' }}">{{ trade.decision }}</td>
+                            <td>{{ trade.price }}</td>
+                            <td class="{{ 'pos' if trade.pnl and trade.pnl >= 0 else 'neg' if trade.pnl else '' }}">{{ "%+.2f"|format(trade.pnl) if trade.pnl is not none else "—" }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" style="color:var(--muted);">No trades yet</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel glass">
+            <div class="section-title" style="justify-content:space-between;">
+                <span>Open Positions ({{ open_positions|length }})</span>
+                <a class="pill-link" style="font-size:11.5px; padding:5px 12px;" href="{{ url_for('open_positions') }}">View All &rarr;</a>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Book</th><th>Symbol</th><th>Entry</th><th>Qty</th></tr></thead>
+                    <tbody>
+                        {% for pos in open_positions %}
+                        <tr>
+                            <td><span class="book-chip">{{ pos.book }}</span></td>
+                            <td>{{ pos.symbol }}</td>
+                            <td>{{ "%.6f"|format(pos.entry_price) }}</td>
+                            <td>{{ "%.4f"|format(pos.quantity) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" style="color:var(--muted);">No open positions</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
 </div>
 
-<main>
+<div class="content-side">
 
-    <div class="hero">
-        <h1>Choose a book</h1>
-        <p>Four independent trading approaches, tracked and risk-managed
-        separately. Click into any of them for the full trade history,
-        equity curve, and daily / monthly / annual breakdown.</p>
+    <div class="panel glass">
+        <div class="section-title">Market Signal</div>
+        {% if market_signal %}
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px;">
+            <span style="font-size:20px; font-weight:700;">{{ market_signal.label }}</span>
+            <span style="color:var(--muted); font-size:12px;">{{ market_signal.score }}/100</span>
+        </div>
+        <div class="bar-track" style="margin-bottom:14px;">
+            <span class="bar-fill" style="width:{{ market_signal.score }}%; background:linear-gradient(90deg, var(--red), var(--amber), var(--green));"></span>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <div class="stat" style="flex:1; text-align:center; padding:10px 6px;">
+                <div class="label" style="color:var(--green);">Bullish</div>
+                <div class="value" style="font-size:14px;">{{ "%.0f"|format(market_signal.bullish_pct) }}%</div>
+            </div>
+            <div class="stat" style="flex:1; text-align:center; padding:10px 6px;">
+                <div class="label" style="color:var(--red);">Bearish</div>
+                <div class="value" style="font-size:14px;">{{ "%.0f"|format(market_signal.bearish_pct) }}%</div>
+            </div>
+        </div>
+        <div style="font-size:10.5px; color:var(--muted-dim); margin-top:10px; line-height:1.5;">
+            Real technical read, not AI: % of {{ market_signal.sample_size }} scanned crypto pairs currently in a bullish EMA trend. The AI/News tier isn't live yet.
+        </div>
+        {% else %}
+        <div class="error-box" style="font-size:12.5px;">Signal unavailable right now.</div>
+        {% endif %}
     </div>
 
-    <div class="card-grid">
-
-        {% for card in cards %}
-        <a class="book-card glass" style="--card-color: {{ card.color }};" href="{{ url_for('book_detail', key=card.key) }}">
-            <div class="top-row">
-                <div>
-                    <h2>{{ card.label }}</h2>
-                    <div class="tagline">{{ card.tagline }}</div>
-                </div>
-                <span class="tier-tag {{ 'safe' if card.tier == 'Safe' else 'risk' }}">{{ card.tier }}</span>
-            </div>
-
-            <div class="description">{{ card.description }}</div>
-
-            <div class="glance">
-                {% if card.summary.ok %}
-                <div>
-                    <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">Total Return</div>
-                    <div class="big-number {{ 'pos' if card.summary.total_return_pct >= 0 else 'neg' }}">
-                        {{ "%+.2f"|format(card.summary.total_return_pct) }}%
-                    </div>
-                </div>
-                {% else %}
-                <div class="error-box" style="font-size:12px;">Data unavailable</div>
-                {% endif %}
-                <div class="arrow">View details &rarr;</div>
-            </div>
-        </a>
+    <div class="panel glass">
+        <div class="section-title">System Status</div>
+        <div class="status-line" style="margin-bottom:4px;">
+            <span class="dot {{ 'on' if any_running else 'off' }}"></span>
+            <strong style="color:var(--text);">{{ "Bots Running" if any_running else "Bots Down" }}</strong>
+            <span style="color:var(--muted); margin-left:6px; font-size:11.5px;">Paper Trading Mode</span>
+        </div>
+        {% for key, meta in books_meta.items() %}
+        {% set status = status_by_book[key] %}
+        <div class="status-row">
+            <span><span class="dot {{ 'on' if status.state == 'running' else ('idle' if status.state == 'idle' else 'off') }}" style="margin-right:6px;"></span>{{ meta.label }}</span>
+            <span class="val">{{ status.state|capitalize }} &middot; {{ format_uptime(status.uptime_seconds) }}</span>
+        </div>
         {% endfor %}
-
-        <a class="book-card placeholder glass" style="--card-color: #fbbf24;" href="{{ url_for('news_placeholder') }}">
-            <div>
-                <div class="tier-tag medium" style="margin-bottom:12px;">Medium Risk</div>
-                <h2 style="margin-bottom:6px;">AI &amp; News</h2>
-                <div class="description">Experimental LLM / news-driven book, not yet live.</div>
-            </div>
-        </a>
-
+        <div class="status-row"><span>Data Feed</span><span class="val" style="color:var(--green);">Connected</span></div>
+        <div class="status-row"><span>Exchange API</span><span class="val" style="color:var(--green);">Connected</span></div>
     </div>
 
-</main>
-</body>
-</html>
+    <div class="panel glass">
+        <div class="section-title" style="justify-content:space-between;">
+            <span>Top Movers (24h)</span>
+        </div>
+        <div style="font-size:10.5px; color:var(--muted-dim); margin-bottom:10px;">Live Binance data, not limited to symbols Atlas trades</div>
+        {% for mover in movers.gainers %}
+        <div class="mover-row">
+            <div><div class="sym">{{ mover.symbol }}</div><div class="price">${{ "%.4f"|format(mover.price) if mover.price else "—" }}</div></div>
+            <div class="chg pos">{{ "%+.2f"|format(mover.change_pct) }}%</div>
+        </div>
+        {% else %}
+        <div style="color:var(--muted); font-size:12px;">Unavailable</div>
+        {% endfor %}
+    </div>
+
+    <div class="panel glass">
+        <div class="section-title">Recent Alerts</div>
+        {% for note in notifications %}
+        <div class="status-row">
+            <span><span class="dot {{ 'on' if note.kind == 'win' else ('off' if note.kind == 'loss' else 'idle') }}" style="margin-right:6px;"></span>{{ note.text }}</span>
+            <span class="val" style="font-size:11px;">{{ format_ago(note.ts) }}</span>
+        </div>
+        {% else %}
+        <div style="color:var(--muted); font-size:12px;">No events in the last 24h</div>
+        {% endfor %}
+    </div>
+
+    <div class="panel glass">
+        <div class="section-title">Quick Actions</div>
+        <div class="quick-actions-grid">
+            <a class="btn" href="{{ url_for('home') }}">&#8635; Refresh</a>
+            <a class="btn" href="{{ url_for('trade_history') }}">&#128203; Trade Log</a>
+            <a class="btn" href="{{ url_for('analytics') }}">&#128202; Analytics</a>
+            <a class="btn" href="{{ url_for('settings') }}">&#9881; Settings</a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const combinedCurve = {{ combined_curve|tojson }};
+
+    function filterByDays(data, days) {
+        if (!days || data.length === 0) return data;
+        const last = new Date(data[data.length - 1].label.replace(" ", "T"));
+        const cutoff = new Date(last.getTime() - days * 86400000);
+        return data.filter(p => new Date(p.label.replace(" ", "T")) >= cutoff);
+    }
+
+    const ctx = document.getElementById("equityChart");
+    let equityChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                borderColor: "#4fd1c5",
+                backgroundColor: "#4fd1c522",
+                fill: true,
+                pointRadius: 0,
+                borderWidth: 2,
+                tension: 0.15,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: { ticks: { color: "#8a99a8", font: { size: 10 } }, grid: { color: "#202b38" } }
+            }
+        }
+    });
+
+    function renderRange(days) {
+        const filtered = filterByDays(combinedCurve, days);
+        equityChart.data.labels = filtered.map(p => p.label);
+        equityChart.data.datasets[0].data = filtered.map(p => p.equity);
+        equityChart.update();
+    }
+    renderRange(7);
+
+    document.querySelectorAll("#rangeToggle button").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll("#rangeToggle button").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            renderRange(parseInt(btn.dataset.range, 10));
+        });
+    });
+
+    document.querySelectorAll("#perfToggle button").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll("#perfToggle button").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            document.querySelectorAll(".perf-block").forEach(el => el.hidden = true);
+            document.querySelector('.perf-block[data-perf-period="' + btn.dataset.period + '"]').hidden = false;
+        });
+    });
+
+    function sparkline(id, data, color) {
+        const c = document.getElementById(id);
+        if (!c) return;
+        new Chart(c, {
+            type: "line",
+            data: { labels: data.map((_, i) => i), datasets: [{ data, borderColor: color, borderWidth: 1.5, pointRadius: 0, tension: 0.3 }] },
+            options: { responsive: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+        });
+    }
+    const sparkData = combinedCurve.slice(-30).map(p => p.equity);
+    sparkline("sparkEquity", sparkData, "#4fd1c5");
+    sparkline("sparkReturn", sparkData, "#818cf8");
+
+    new Chart(document.getElementById("winRing"), {
+        type: "doughnut",
+        data: {
+            datasets: [{
+                data: [{{ total_wins }}, {{ total_losses }}],
+                backgroundColor: ["#4ade80", "#232d38"],
+                borderWidth: 0,
+            }]
+        },
+        options: { responsive: false, cutout: "72%", plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+    });
+</script>
+{% endblock %}

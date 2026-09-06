@@ -1,34 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Atlas AI — {{ label }}</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+{% extends "base.html" %}
+{% block title %}{{ label }}{% endblock %}
+{% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <style>
-    .period-toggle {
-        display: inline-flex;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 3px;
-        gap: 3px;
-    }
-    .period-toggle button {
-        border: none;
-        background: transparent;
-        color: var(--muted);
-        font-size: 12px;
-        padding: 6px 14px;
-        border-radius: 999px;
-        cursor: pointer;
-        transition: all 0.15s ease;
-    }
-    .period-toggle button.active {
-        background: {{ color }};
-        color: #06121a;
-        font-weight: 600;
-    }
     .two-col {
         display: grid;
         grid-template-columns: 1.1fr 1fr;
@@ -41,21 +15,10 @@
     .decision-buy { color: var(--green); }
     .decision-sell { color: var(--muted); }
 </style>
-</head>
-<body>
+{% endblock %}
 
-<div class="topnav">
-    <div class="brand">
-        <span class="mark">ATLAS AI</span>
-        <span class="sub">{{ label }}</span>
-    </div>
-    <div class="links">
-        <a class="pill-link" href="{{ url_for('home') }}">All books</a>
-        <a class="pill-link" href="{{ url_for('logout') }}">Log out</a>
-    </div>
-</div>
-
-<main>
+{% block content %}
+<div class="content-main" style="width:100%;">
 
     <a class="back-link" href="{{ url_for('home') }}">&larr; Back to overview</a>
 
@@ -116,12 +79,12 @@
         <canvas id="equityChart"></canvas>
     </div>
 
-    <div class="two-col">
+    <div class="two-col" style="margin-top:20px;">
 
         <div class="panel glass">
             <div class="section-title" style="justify-content:space-between;">
                 <span>Performance by Period</span>
-                <span class="period-toggle">
+                <span class="seg-toggle" id="periodToggle">
                     <button data-period="daily" class="active">Day</button>
                     <button data-period="monthly">Month</button>
                     <button data-period="annual">Year</button>
@@ -229,7 +192,7 @@
                 }
             });
 
-            const buttons = document.querySelectorAll(".period-toggle button");
+            const buttons = document.querySelectorAll("#periodToggle button");
             buttons.forEach(btn => {
                 btn.addEventListener("click", () => {
                     buttons.forEach(b => b.classList.remove("active"));
@@ -245,6 +208,5 @@
     <div class="panel glass error-box">Could not load data: {{ book.error }}</div>
     {% endif %}
 
-</main>
-</body>
-</html>
+</div>
+{% endblock %}
