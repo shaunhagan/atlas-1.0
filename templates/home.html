@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Atlas AI — Overview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+    .hero {
+        padding: 30px 4px 8px;
+        margin-bottom: 8px;
+    }
+    .hero h1 {
+        font-size: 34px;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+    }
+    .hero p {
+        color: var(--muted);
+        font-size: 14.5px;
+        max-width: 560px;
+        line-height: 1.6;
+        margin: 0;
+    }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+    <div class="brand">
+        <span class="mark">ATLAS AI</span>
+        <span class="sub">Trading Command Center</span>
+    </div>
+    <div class="links">
+        <a class="pill-link" href="{{ url_for('logout') }}">Log out</a>
+    </div>
+</div>
+
+<main>
+
+    <div class="hero">
+        <h1>Choose a book</h1>
+        <p>Four independent trading approaches, tracked and risk-managed
+        separately. Click into any of them for the full trade history,
+        equity curve, and daily / monthly / annual breakdown.</p>
+    </div>
+
+    <div class="card-grid">
+
+        {% for card in cards %}
+        <a class="book-card glass" style="--card-color: {{ card.color }};" href="{{ url_for('book_detail', key=card.key) }}">
+            <div class="top-row">
+                <div>
+                    <h2>{{ card.label }}</h2>
+                    <div class="tagline">{{ card.tagline }}</div>
+                </div>
+                <span class="tier-tag {{ 'safe' if card.tier == 'Safe' else 'risk' }}">{{ card.tier }}</span>
+            </div>
+
+            <div class="description">{{ card.description }}</div>
+
+            <div class="glance">
+                {% if card.summary.ok %}
+                <div>
+                    <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">Total Return</div>
+                    <div class="big-number {{ 'pos' if card.summary.total_return_pct >= 0 else 'neg' }}">
+                        {{ "%+.2f"|format(card.summary.total_return_pct) }}%
+                    </div>
+                </div>
+                {% else %}
+                <div class="error-box" style="font-size:12px;">Data unavailable</div>
+                {% endif %}
+                <div class="arrow">View details &rarr;</div>
+            </div>
+        </a>
+        {% endfor %}
+
+        <a class="book-card placeholder glass" style="--card-color: #fbbf24;" href="{{ url_for('news_placeholder') }}">
+            <div>
+                <div class="tier-tag medium" style="margin-bottom:12px;">Medium Risk</div>
+                <h2 style="margin-bottom:6px;">AI &amp; News</h2>
+                <div class="description">Experimental LLM / news-driven book, not yet live.</div>
+            </div>
+        </a>
+
+    </div>
+
+</main>
+</body>
+</html>

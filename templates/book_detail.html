@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Atlas AI — {{ label }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+    .period-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 3px;
+        gap: 3px;
+    }
+    .period-toggle button {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .period-toggle button.active {
+        background: {{ color }};
+        color: #06121a;
+        font-weight: 600;
+    }
+    .two-col {
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 20px;
+        align-items: start;
+    }
+    @media (max-width: 900px) {
+        .two-col { grid-template-columns: 1fr; }
+    }
+    .decision-buy { color: var(--green); }
+    .decision-sell { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+    <div class="brand">
+        <span class="mark">ATLAS AI</span>
+        <span class="sub">{{ label }}</span>
+    </div>
+    <div class="links">
+        <a class="pill-link" href="{{ url_for('home') }}">All books</a>
+        <a class="pill-link" href="{{ url_for('logout') }}">Log out</a>
+    </div>
+</div>
+
+<main>
+
+    <a class="back-link" href="{{ url_for('home') }}">&larr; Back to overview</a>
+
+    <div class="detail-header">
+        <div>
+            <h1>{{ label }}</h1>
+            <div class="tagline">{{ tagline }} &middot; {{ description }}</div>
+        </div>
+        <span class="tier-tag {{ 'safe' if tier == 'Safe' else 'risk' }}">{{ tier }}</span>
+    </div>
+
+    {% if book.ok %}
+
+    <div class="panel glass" style="margin-bottom:20px;">
+        <div class="stat-grid">
+            <div class="stat">
+                <div class="label">Total Equity</div>
+                <div class="value">${{ "%.2f"|format(book.total_equity) }}</div>
+            </div>
+            <div class="stat">
+                <div class="label">Total Return</div>
+                <div class="value {{ 'pos' if book.total_return_pct >= 0 else 'neg' }}">
+                    {{ "%+.2f"|format(book.total_return_pct) }}%
+                </div>
+            </div>
+            <div class="stat">
+                <div class="label">Max Drawdown</div>
+                <div class="value">{{ "%.2f"|format(book.max_drawdown) }}%</div>
+            </div>
+            <div class="stat">
+                <div class="label">Win Rate</div>
+                <div class="value">
+                    {{ "%.1f"|format(book.win_rate) }}%
+                    <span style="color:var(--muted); font-weight:400; font-size:11px;">({{ book.wins }}W/{{ book.losses }}L)</span>
+                </div>
+            </div>
+            <div class="stat">
+                <div class="label">Realised P&amp;L</div>
+                <div class="value {{ 'pos' if book.realised_pnl >= 0 else 'neg' }}">{{ "%+.2f"|format(book.realised_pnl) }}</div>
+            </div>
+            <div class="stat">
+                <div class="label">Open Positions</div>
+                <div class="value">{{ book.open_positions|length }}</div>
+            </div>
+            <div class="stat">
+                <div class="label">Avg Win</div>
+                <div class="value pos">{{ "%+.2f"|format(book.avg_win) }}</div>
+            </div>
+            <div class="stat">
+                <div class="label">Avg Loss</div>
+                <div class="value neg">{{ "%+.2f"|format(book.avg_loss) }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel glass">
+        <div class="section-title">Equity Curve</div>
+        <canvas id="equityChart"></canvas>
+    </div>
+
+    <div class="two-col">
+
+        <div class="panel glass">
+            <div class="section-title" style="justify-content:space-between;">
+                <span>Performance by Period</span>
+                <span class="period-toggle">
+                    <button data-period="daily" class="active">Day</button>
+                    <button data-period="monthly">Month</button>
+                    <button data-period="annual">Year</button>
+                </span>
+            </div>
+            <div class="table-wrap" style="max-height:320px;">
+                {% for key in ["daily", "monthly", "annual"] %}
+                <table id="period-{{ key }}" {% if not loop.first %}hidden{% endif %}>
+                    <thead><tr><th>Period</th><th>End Equity</th><th>P&amp;L</th><th>P&amp;L %</th></tr></thead>
+                    <tbody>
+                        {% for row in book[key] %}
+                        <tr>
+                            <td>{{ row.period }}</td>
+                            <td>${{ "%.2f"|format(row.end_equity) }}</td>
+                            <td class="{{ 'pos' if row.pnl >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl) }}</td>
+                            <td class="{{ 'pos' if row.pnl_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(row.pnl_pct) }}%</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" style="color:var(--muted);">No data yet</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="panel glass">
+            <div class="section-title">Open Positions</div>
+            <div class="table-wrap" style="max-height:320px;">
+                <table>
+                    <thead><tr><th>Symbol</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th></tr></thead>
+                    <tbody>
+                        {% for pos in book.open_positions %}
+                        <tr>
+                            <td>{{ pos.symbol }}</td>
+                            <td>{{ "%.6f"|format(pos.entry_price) }}</td>
+                            <td>{{ "%.4f"|format(pos.quantity) }}</td>
+                            <td>{{ "%.6f"|format(pos.stop_loss) if pos.stop_loss else "—" }}</td>
+                            <td>{{ "%.6f"|format(pos.take_profit) if pos.take_profit else "—" }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" style="color:var(--muted);">No open positions</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="panel glass" style="margin-top:20px;">
+        <div class="section-title">Full Trade History &mdash; {{ book.full_trades|length }} entries</div>
+        <div class="table-wrap" style="max-height:480px;">
+            <table>
+                <thead><tr><th>Date</th><th>Time</th><th>Symbol</th><th>Action</th><th>Price</th><th>Exit Reason</th><th>P&amp;L</th></tr></thead>
+                <tbody>
+                    {% for trade in book.full_trades %}
+                    <tr>
+                        <td>{{ trade.date }}</td>
+                        <td>{{ trade.time }}</td>
+                        <td>{{ trade.symbol }}</td>
+                        <td class="{{ 'decision-buy' if trade.decision == 'BUY' else 'decision-sell' }}">{{ trade.decision }}</td>
+                        <td>{{ trade.price }}</td>
+                        <td>{{ trade.reason or "—" }}</td>
+                        <td class="{{ 'pos' if trade.pnl and trade.pnl >= 0 else 'neg' if trade.pnl else '' }}">
+                            {{ "%+.2f"|format(trade.pnl) if trade.pnl is not none else "—" }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" style="color:var(--muted);">No trades yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const raw = {{ book.equity_curve|tojson }};
+            const ctx = document.getElementById("equityChart");
+            new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: raw.map(p => p.label),
+                    datasets: [{
+                        data: raw.map(p => p.equity),
+                        borderColor: "{{ color }}",
+                        backgroundColor: "{{ color }}22",
+                        fill: true,
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        tension: 0.15,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            ticks: { color: "#8a99a8", font: { size: 10 } },
+                            grid: { color: "#202b38" },
+                        }
+                    }
+                }
+            });
+
+            const buttons = document.querySelectorAll(".period-toggle button");
+            buttons.forEach(btn => {
+                btn.addEventListener("click", () => {
+                    buttons.forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    document.querySelectorAll('[id^="period-"]').forEach(t => t.hidden = true);
+                    document.getElementById("period-" + btn.dataset.period).hidden = false;
+                });
+            });
+        })();
+    </script>
+
+    {% else %}
+    <div class="panel glass error-box">Could not load data: {{ book.error }}</div>
+    {% endif %}
+
+</main>
+</body>
+</html>

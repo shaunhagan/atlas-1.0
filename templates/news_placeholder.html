@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Atlas AI — AI &amp; News</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="topnav">
+    <div class="brand">
+        <span class="mark">ATLAS AI</span>
+        <span class="sub">AI &amp; News</span>
+    </div>
+    <div class="links">
+        <a class="pill-link" href="{{ url_for('home') }}">All books</a>
+        <a class="pill-link" href="{{ url_for('logout') }}">Log out</a>
+    </div>
+</div>
+
+<main>
+    <a class="back-link" href="{{ url_for('home') }}">&larr; Back to overview</a>
+
+    <div class="panel glass" style="text-align:center; padding:60px 30px;">
+        <div class="tier-tag medium" style="margin-bottom:18px; display:inline-block;">Medium Risk &mdash; Not Yet Live</div>
+        <h1 style="margin:0 0 12px; font-size:26px;">AI &amp; News-Driven Trading</h1>
+        <p style="color:var(--muted); max-width:480px; margin:0 auto; line-height:1.6; font-size:14px;">
+            A planned book that reacts to news and sentiment via an LLM
+            agent, sitting between Safe and High Risk. Pending a decision
+            on an LLM API key before it goes live &mdash; will be tracked
+            entirely independently of the other books, same as everything
+            else here.
+        </p>
+    </div>
+</main>
+</body>
+</html>

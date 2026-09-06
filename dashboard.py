@@ -10,12 +10,12 @@ files report.py/stock_report.py already read -- no separate data
 layer, no risk of showing something different from what those CLI
 reports say.
 
-Structure is a risk-tiered menu: each trading approach is its own
-independently tracked "book" -- Safe (crypto + stocks, the validated,
-disciplined tier), Medium (AI/news-driven, placeholder pending an LLM
-API key decision), and High (meme coins, deliberately aggressive by
-design). Never blended together, so a reader can judge each on its own
-merits, matching how the underlying systems are actually kept separate.
+Structure: a landing page with one card per book (Crypto, Stocks,
+Meme Coins, and a not-yet-live AI/News section), each linking to its
+own deep-dive page with the full trade history and daily/monthly/
+annual breakdowns -- not a single page trying to show everything at
+once. Books stay independently rendered, matching how the underlying
+systems are actually kept separate.
 """
 
 import os
@@ -29,6 +29,7 @@ from flask import (
     url_for,
     session,
     jsonify,
+    abort,
 )
 from dotenv import load_dotenv
 
@@ -40,6 +41,8 @@ import stock_report
 
 import meme_portfolio
 import meme_report
+
+import report_utils
 
 
 load_dotenv()
@@ -54,6 +57,51 @@ DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")
 EQUITY_CURVE_POINT_LIMIT = 500
 
 RECENT_TRADES_LIMIT = 20
+
+
+BOOKS = {
+    "crypto": {
+        "label": "Crypto",
+        "color": "#4fd1c5",
+        "tier": "Safe",
+        "tagline": "Trend-following, 24/7",
+        "description": (
+            "EMA/RSI/MACD trend engine across ~60 liquid Binance USDT "
+            "pairs. Validated through a full backtest -> train/test -> "
+            "parameter sweep -> ablation sequence. The longest-running, "
+            "most disciplined book."
+        ),
+        "portfolio_module": portfolio,
+        "report_module": report,
+    },
+    "stocks": {
+        "label": "Stocks",
+        "color": "#818cf8",
+        "tier": "Safe",
+        "tagline": "Mean reversion, US market hours",
+        "description": (
+            "Bollinger Band + RSI mean reversion across ~50 liquid, "
+            "volume-ranked US equities (leveraged/inverse ETFs excluded). "
+            "Replaced a trend-following engine that proved dead both in "
+            "backtest and live."
+        ),
+        "portfolio_module": stock_portfolio,
+        "report_module": stock_report,
+    },
+    "meme": {
+        "label": "Meme Coins",
+        "color": "#fb923c",
+        "tier": "High Risk",
+        "tagline": "Aggressive, no regime gate",
+        "description": (
+            "Same trend engine as crypto, tuned looser and wider, across "
+            "~22 meme coins on Kraken. Deliberately the riskiest book -- "
+            "wide stops, low win rate by design, big infrequent winners."
+        ),
+        "portfolio_module": meme_portfolio,
+        "report_module": meme_report,
+    },
+}
 
 
 # ============================================================
@@ -108,14 +156,16 @@ def logout():
 
 
 # ============================================================
-# DATA LAYER -- reuses report.py / stock_report.py directly
+# DATA LAYER -- reuses report.py / stock_report.py / report_utils.py
 # ============================================================
 
 def _book_summary(portfolio_module, report_module):
     """
     Same numbers report.py/stock_report.py print on the CLI, reused
     directly rather than re-derived, so the dashboard can never
-    silently disagree with `python report.py`.
+    silently disagree with `python report.py`. Used for the landing
+    page cards (a quick-glance stat) and as the base for the detail
+    page.
     """
 
     try:
@@ -200,6 +250,32 @@ def _book_summary(portfolio_module, report_module):
         return {"ok": False, "error": str(error)}
 
 
+def _book_detail(portfolio_module, report_module):
+    """Everything _book_summary has, plus the full trade history and
+    daily/monthly/annual breakdowns for the deep-dive page."""
+
+    summary = _book_summary(portfolio_module, report_module)
+
+    if not summary["ok"]:
+        return summary
+
+    try:
+
+        trades = report_module.load_trades()
+        equity_rows = report_module.load_equity_curve()
+
+        summary["full_trades"] = report_utils.full_trade_history(trades)
+        summary["daily"] = list(reversed(report_utils.group_by_period(equity_rows, "day")))
+        summary["monthly"] = list(reversed(report_utils.group_by_period(equity_rows, "month")))
+        summary["annual"] = list(reversed(report_utils.group_by_period(equity_rows, "year")))
+
+        return summary
+
+    except Exception as error:
+
+        return {"ok": False, "error": str(error)}
+
+
 # ============================================================
 # ROUTES
 # ============================================================
@@ -208,16 +284,53 @@ def _book_summary(portfolio_module, report_module):
 @login_required
 def home():
 
-    crypto = _book_summary(portfolio, report)
-    stocks = _book_summary(stock_portfolio, stock_report)
-    meme = _book_summary(meme_portfolio, meme_report)
+    cards = []
+
+    for key, meta in BOOKS.items():
+
+        summary = _book_summary(meta["portfolio_module"], meta["report_module"])
+
+        cards.append({
+            "key": key,
+            "label": meta["label"],
+            "color": meta["color"],
+            "tier": meta["tier"],
+            "tagline": meta["tagline"],
+            "description": meta["description"],
+            "summary": summary,
+        })
+
+    return render_template("home.html", cards=cards)
+
+
+@app.route("/book/<key>")
+@login_required
+def book_detail(key):
+
+    meta = BOOKS.get(key)
+
+    if meta is None:
+        abort(404)
+
+    detail = _book_detail(meta["portfolio_module"], meta["report_module"])
 
     return render_template(
-        "dashboard.html",
-        crypto=crypto,
-        stocks=stocks,
-        meme=meme,
+        "book_detail.html",
+        key=key,
+        label=meta["label"],
+        color=meta["color"],
+        tier=meta["tier"],
+        tagline=meta["tagline"],
+        description=meta["description"],
+        book=detail,
     )
+
+
+@app.route("/news")
+@login_required
+def news_placeholder():
+
+    return render_template("news_placeholder.html")
 
 
 @app.route("/api/crypto")
