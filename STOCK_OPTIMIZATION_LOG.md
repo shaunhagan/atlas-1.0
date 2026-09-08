@@ -639,3 +639,53 @@ the win-rate/expectancy stats are a clean read of the new strategy,
 not contaminated by an engine that's no longer running. This is the
 first point where "is mean-reversion actually working live" can
 start to be answered with real data rather than legacy noise.
+
+## 2026-09-08 (cont.) -- Fifth hypothesis (min price filter) rejected; the deeper problem is instability itself
+
+New angle, not another regime-timing guess: does excluding sub-$5
+"penny" names (PDSB, ATER, PLUG, NVD, NIO...) -- which plausibly
+behave more like meme coins than blue-chip equities -- clean up the
+signal? Tested $5/$10/$20 minimum price thresholds against both
+windows (`stock_meanrev_price_filter_test.py`, current live universe
+and dates, so not directly comparable in absolute numbers to the
+2026-08-29/30 runs, but the same two relative windows):
+
+| Window | Filter | Symbols | Train N | Train Exp | Test N | Test Exp |
+|---|---|---:|---:|---:|---:|---:|
+| Window 1 | No filter | 50 | 509 | -0.715% | 86 | +1.689% |
+| Window 1 | $5+ | 43 | 454 | -0.700% | 82 | +0.835% |
+| Window 1 | $10+ | 32 | 326 | -0.522% | 59 | +0.852% |
+| Window 1 | $20+ | 19 | 191 | -0.976% | 36 | +1.185% |
+| Window 2 | No filter | 50 | 509 | +2.673% | 127 | -0.724% |
+| Window 2 | $5+ | 42 | 453 | +2.601% | 124 | -0.750% |
+| Window 2 | $10+ | 30 | 324 | +3.108% | 84 | -0.578% |
+| Window 2 | $20+ | 15 | 173 | +4.641% | 44 | -0.386% |
+
+**Rejected -- and more importantly, this exposes the real issue.**
+Price filtering doesn't fix anything (window 2's test stays negative
+at every threshold). But the bigger finding: **the two windows have
+now fully swapped roles from the 2026-08-29/30 runs.** Back then,
+window 1 (then-recent 90 days) was the unstable/negative-train one and
+window 2 (90-180d back) was the clean, robustly-positive one. Today,
+with the calendar having moved forward and the live-ranked universe
+refreshed, window 1 (now-recent 90 days) is the consistently-positive
+one and window 2 is now negative across the board.
+
+**Five independent hypotheses now tried against this instability**
+(ADX, SPY volatility, SPY volatility+trend, SPY trend direction, min
+price) -- none explain it, and the specific 90-day window that reads
+"good" keeps moving depending on exactly when the test is run. That's
+the signature of a true edge close to zero with meaningful noise
+around it, not a filter nobody's found yet. Continuing to retune this
+same BB+RSI mean-reversion family is very likely past the point of
+diminishing returns.
+
+**Decision: stop iterating on mean-reversion variants, try a
+structurally different strategy family instead** (per explicit
+instruction -- "implement different strategies that other bots use").
+Next: a VWAP + gap-pullback entry (session-anchored VWAP, gap
+detection vs prior close, first-90-minutes timing), which has real
+external evidence behind it (documented ~65% success rate for first
+pullback to VWAP after a >3% gap-up) and is genuinely different in
+kind from both the trend engine and mean reversion, not another
+retune of either.
