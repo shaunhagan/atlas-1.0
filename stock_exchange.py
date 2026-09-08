@@ -160,7 +160,7 @@ class StockExchange:
             limit=STOCK_CANDLE_LIMIT,
         )
 
-    def get_historical_candles(self, symbol, since=None, limit=1000):
+    def get_historical_candles(self, symbol, since=None, limit=1000, timeframe_minutes=None):
         """
         Fetch OHLCV bars in ccxt's [ts, open, high, low, close, volume]
         list shape. Stocks only trade ~6.5h/weekday, so the calendar
@@ -175,7 +175,15 @@ class StockExchange:
         slicing the tail client-side. When `since` IS given (backtest
         pagination, walking forward in time), ascending-from-since is
         the correct/intended behaviour, so `limit` is used as-is.
+
+        timeframe_minutes: defaults to STOCK_TIMEFRAME_MINUTES (the
+        live scanner never passes this, so its behaviour is
+        unchanged) -- research code can override it to test a
+        different bar size without duplicating this whole
+        pagination/tail-slice fix in a second fetch function.
         """
+
+        resolved_timeframe = timeframe_minutes or STOCK_TIMEFRAME_MINUTES
 
         end = datetime.now(timezone.utc)
 
@@ -183,7 +191,7 @@ class StockExchange:
             start = datetime.fromtimestamp(since / 1000, tz=timezone.utc)
             request_limit = limit
         else:
-            bars_per_session = (6.5 * 60) / STOCK_TIMEFRAME_MINUTES
+            bars_per_session = (6.5 * 60) / resolved_timeframe
             sessions_needed = (limit / bars_per_session) + 3
             start = end - timedelta(days=sessions_needed * 1.6)
             request_limit = 10000
@@ -191,7 +199,7 @@ class StockExchange:
         request = StockBarsRequest(
             symbol_or_symbols=symbol,
             timeframe=TimeFrame(
-                STOCK_TIMEFRAME_MINUTES,
+                resolved_timeframe,
                 TimeFrameUnit.Minute,
             ),
             start=start,
