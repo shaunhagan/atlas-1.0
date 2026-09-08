@@ -689,3 +689,54 @@ external evidence behind it (documented ~65% success rate for first
 pullback to VWAP after a >3% gap-up) and is genuinely different in
 kind from both the trend engine and mean reversion, not another
 retune of either.
+
+## 2026-09-08 (cont.) -- VWAP + gap-pullback: REJECTED, decisively
+
+Built `stock_vwap_gap_backtest.py`: session-anchored VWAP (reset each
+trading day), gap-up detection vs prior close (>=2%), entry on first
+pullback to VWAP within the first 90 minutes of the session. Same ATR
+bracket exit as everywhere else -- only the entry differs.
+
+**30-day quick check looked promising** -- 36 trades, +1.478%
+expectancy, 33.3% win rate. Did not stop there, exactly per this
+log's own repeated lesson about 30-day full-window numbers.
+
+**90-day full run, the number that actually matters:**
+
+| Metric | Full period | Train | Test (held out) |
+|---|---:|---:|---:|
+| Trades | 168 | 153 | 15 |
+| Win Rate | 21.4% | 20.3% | 33.3% |
+| Expectancy/Trade | **-3.097%** | **-3.488%** | +0.885% |
+
+**Rejected, and not close.** Full-period and train are both
+decisively negative on large, reliable samples (168 and 153 trades).
+Test being positive is on only 15 trades -- far below this project's
+own significance bar, reads as noise around a genuinely negative
+signal, not a rescue. The exact pattern this log exists to catch:
+30-day full-window looked good, 90-day proper validation reveals it
+wasn't.
+
+**Three strategy families now tested for stocks: trend-following
+(dead, five separate confirmations), mean-reversion (unstable across
+five independent hypotheses, edge indistinguishable from noise), and
+VWAP+gap (dead, decisively). Both structurally distinct alternatives
+tried per explicit instruction have failed as hard as the original
+engine did.** Live stock book stays on mean-reversion (the least-bad,
+still-imperfect option) since replacing it with a rejected worse
+option would be an actual regression at this point, not progress.
+
+**Honest read at this point:** this isn't proving there's no
+technical edge available on 5-minute US equity bars in principle --
+it's evidence against three specific, reasonably well-motivated
+attempts at finding one, on this universe, at this timeframe. A
+genuinely different lever not yet pulled: the timeframe itself. Every
+attempt so far has used 5-minute bars because that's what the rest of
+this project standardised on; large-cap, heavily-arbitraged equities
+may simply have too little exploitable signal at 5-minute granularity
+specifically (a lot of that noise is dominated by institutional HFT
+activity), where a longer bar (15m/1h) could plausibly behave
+differently. Worth one more test before concluding stocks may not
+have an easily-exploitable technical edge with this project's current
+tools -- which would itself be a legitimate, useful finding, not a
+failure of the process.
