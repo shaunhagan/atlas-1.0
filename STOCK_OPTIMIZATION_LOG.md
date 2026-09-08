@@ -740,3 +740,52 @@ differently. Worth one more test before concluding stocks may not
 have an easily-exploitable technical edge with this project's current
 tools -- which would itself be a legitimate, useful finding, not a
 failure of the process.
+
+## 2026-09-08 (cont.) -- 15-minute timeframe: genuinely mixed, not a clean answer either way
+
+Added an optional `timeframe_minutes` override to
+`stock_exchange.get_historical_candles()` (defaults preserve the live
+scanner's 5m behaviour exactly) and reran the exact same BB+RSI
+mean-reversion entry / ATR bracket exit against 15m candles instead --
+isolating timeframe as the only changed variable, no re-tuning.
+
+| Metric | Full period | Train | Test (held out) |
+|---|---:|---:|---:|
+| Trades | 212 | 183 | 29 |
+| Win Rate | 28.8% | 27.9% | 34.5% |
+| Expectancy/Trade | -2.071% | **-2.710%** | **+1.959%** |
+
+**Not a clean rejection or a clean pass.** Test is positive on an
+adequately-sized sample this time (29, above the 20-trade bar) --
+unlike VWAP+gap's rejection, this can't be waved off as noise on a
+too-small sample alone. But train is strongly negative on an even
+larger sample (183), and critically, nothing was tuned to fit train
+here -- this isn't the classic overfitting shape (parameters chosen to
+maximise train, then failing out of sample), it's two large, honest
+samples from the same fixed strategy simply disagreeing with each
+other. That is itself informative: it's the same instability
+signature every other cut of mean-reversion has shown today (the two
+5m windows swapping which one looked good, five rejected regime/price
+filters, now timeframe too) -- not a specific bug or missing filter,
+but a strategy whose true edge appears to be close to zero with
+substantial noise around it, regardless of how the historical data is
+sliced.
+
+**Stepping back after a full day of testing three strategy families
+(trend-following, mean-reversion, VWAP+gap) across two timeframes:**
+every single cut of every single approach has shown some subset of
+the data looking good and another looking bad, with the "good" one
+moving depending on exactly how the test is framed. None has produced
+a result that stays positive across independent re-checks the way
+crypto's validated regime filter or meme's portfolio heat gate did.
+Continuing to slice the same ~18 months of historical data more ways
+in search of a combination that finally looks clean everywhere is
+very likely to eventually "succeed" by chance alone (multiple-testing/
+p-hacking risk) rather than by finding something real -- exactly the
+failure mode this log's whole discipline exists to prevent.
+
+**Not deploying 15m.** Live book stays on the current 5m mean-reversion
+config, now running clean since the legacy cutover -- the honest next
+step is to let it accumulate real live trades over the coming days/
+weeks (something backtesting on the same fixed historical window
+cannot substitute for) rather than keep re-slicing the same data.
