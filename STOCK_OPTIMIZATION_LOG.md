@@ -609,3 +609,33 @@ Deployed to `stock_scanner.py` via the same asset-agnostic
 `risk_guard.check_portfolio_heat()` used for meme. Smoke-tested
 against the real live stock portfolio at deploy time (book wasn't hot,
 gate correctly allowed trading). Restarted the live stock bot.
+
+## 2026-09-08 -- Legacy position cutover: closed 9 trend-engine holdovers
+
+Three days after the mean-reversion switch, the book's win-rate stat
+was still reading 0% -- misleading at face value. Checked why: every
+one of the 22 closed trades so far was the OLD trend engine's
+residual open positions finally hitting their stop, not a new
+mean-reversion trade (the new strategy had exactly 3 trades open, 0
+closed, at that point -- market had only just reopened). Worse: 9 of
+14 open positions were still trend-engine holdovers (two of them --
+SQQQ, QID -- are leveraged ETFs now explicitly excluded from the
+universe), set to keep trickling out over the coming days/weeks and
+muddying the win-rate read indefinitely.
+
+**Closed all 9 legacy positions at current market price**
+(ACDC, AA, AAXJ, CRM, SQQQ, RIG, QID, SPDN, SNAP), logged with reason
+`LEGACY CUTOVER` so they're clearly distinguishable from a real
+stop-loss/take-profit in the trade log. Net effect was mildly
+positive (+$80.25: 5 winners including ACDC +$84.66, 4 losers
+including SNAP -$14.14) -- not a loss-taking event, just clearing the
+board. All-time realised P&L is unchanged/untouched by this (still
+reflects the trend engine's real historical losses, nothing erased);
+this only affects what counts as "current" going forward.
+
+**Book now holds exactly 5 open positions, all mean-reversion
+entries from today (AAL, MSTR, SCHD, SPCX, PATH).** From this point,
+the win-rate/expectancy stats are a clean read of the new strategy,
+not contaminated by an engine that's no longer running. This is the
+first point where "is mean-reversion actually working live" can
+start to be answered with real data rather than legacy noise.
